@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cnosuke/mcp-greeting/config"
-	"github.com/cnosuke/mcp-greeting/logger"
-	"github.com/cnosuke/mcp-greeting/server"
+	"github.com/cnosuke/mcp-fetch/config"
+	"github.com/cnosuke/mcp-fetch/logger"
+	"github.com/cnosuke/mcp-fetch/server"
 	"github.com/cockroachdb/errors"
 	"github.com/urfave/cli/v2"
 )
@@ -17,8 +17,8 @@ var (
 	Version  = "0.0.1"
 	Revision = "xxx"
 
-	Name  = "mcp-greeting"
-	Usage = "A simple MCP server implementation for greetings"
+	Name  = "mcp-fetch"
+	Usage = "A simple MCP server implementation for fetch URLs"
 )
 
 func main() {

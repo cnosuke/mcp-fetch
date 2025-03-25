@@ -45,8 +45,8 @@ To integrate with Claude Desktop, add an entry to your `claude_desktop_config.js
 {
   "mcpServers": {
     "greeting": {
-      "command": "./bin/mcp-greeting",
-      "args": ["server", "--no-logs", "--log", "mcp-greeting.log"],
+      "command": "./bin/mcp-fetch",
+      "args": ["server", "--no-logs", "--log", "mcp-fetch.log"],
       "env": {
         "GREETING_DEFAULT_MESSAGE": "こんにちは"
       }
