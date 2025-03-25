@@ -32,7 +32,7 @@ func Run(cfg *config.Config) error {
 
 	// Register all tools
 	zap.S().Debugw("registering tools")
-	if err := tools.RegisterAllTools(server, fetchServer); err != nil {
+	if err := tools.RegisterAllTools(server, fetchServer, cfg.Fetch.MaxURLs); err != nil {
 		zap.S().Errorw("failed to register tools", "error", err)
 		return err
 	}

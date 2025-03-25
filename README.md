@@ -21,12 +21,16 @@ The server is configured via a YAML file (default: config.yml). For example:
 fetch:
   timeout: 30
   user_agent: "mcp-fetch/1.0"
+  max_urls: 20
+  max_workers: 20
 ```
 
 Note: Configuration parameters can also be injected via environment variables:
 
 * `FETCH_TIMEOUT`: Override the fetch timeout in seconds
 * `FETCH_USER_AGENT`: Override the user agent string
+* `FETCH_MAX_URLS`: Override the maximum number of URLs that can be processed in a single request
+* `FETCH_MAX_WORKERS`: Override the maximum number of worker goroutines for parallel processing
 
 ## Logging
 
@@ -42,6 +46,7 @@ Important: When using the MCP server with a stdio transport, logging must not be
 MCP clients interact with the server by sending JSON‐RPC requests to execute various tools. The following MCP tools are supported:
 
 * `fetch`: Fetches content from a URL, with automatic format conversion based on content type.
+* `fetch_multiple`: Fetches content from multiple URLs in parallel (up to the configured limit), with automatic format conversion.
 
 ### Using with Claude Desktop
 
@@ -55,7 +60,9 @@ To integrate with Claude Desktop, add an entry to your `claude_desktop_config.js
       "args": ["server", "--no-logs", "--log", "mcp-fetch.log"],
       "env": {
         "FETCH_TIMEOUT": "30",
-        "FETCH_USER_AGENT": "mcp-fetch/1.0"
+        "FETCH_USER_AGENT": "mcp-fetch/1.0",
+        "FETCH_MAX_URLS": "20",
+        "FETCH_MAX_WORKERS": "20"
       }
     }
   }

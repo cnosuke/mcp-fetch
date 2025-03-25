@@ -14,9 +14,15 @@ type FetchArgs struct {
 	URL string `json:"url" jsonschema:"description=URL to fetch,required=true"`
 }
 
-// Fetcher defines the interface for URL fetching
+// Fetcher defines the interface for single URL fetching
 type Fetcher interface {
 	FetchURL(url string) (*types.FetchResponse, error)
+}
+
+// MultiFetcher defines the interface for multiple URL fetching
+type MultiFetcher interface {
+	Fetcher
+	FetchMultipleURLs(urls []string) (*types.MultipleFetchResponse, error)
 }
 
 // RegisterFetchTool - Register the fetch tool

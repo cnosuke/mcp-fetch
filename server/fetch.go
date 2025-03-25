@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/JohannesKaufmann/html-to-markdown"
@@ -15,23 +16,26 @@ import (
 
 // FetchServer - Fetch server structure
 type FetchServer struct {
-	client    *http.Client
-	userAgent string
+	client     *http.Client
+	userAgent  string
+	maxWorkers int
 }
 
 // NewFetchServer - Create a new Fetch server
 func NewFetchServer(cfg *config.Config) (*FetchServer, error) {
 	zap.S().Infow("creating new Fetch server",
 		"timeout", cfg.Fetch.Timeout,
-		"user_agent", cfg.Fetch.UserAgent)
+		"user_agent", cfg.Fetch.UserAgent,
+		"max_workers", cfg.Fetch.MaxWorkers)
 
 	client := &http.Client{
 		Timeout: time.Duration(cfg.Fetch.Timeout) * time.Second,
 	}
 
 	return &FetchServer{
-		client:    client,
-		userAgent: cfg.Fetch.UserAgent,
+		client:     client,
+		userAgent:  cfg.Fetch.UserAgent,
+		maxWorkers: cfg.Fetch.MaxWorkers,
 	}, nil
 }
 
@@ -83,4 +87,75 @@ func (s *FetchServer) FetchURL(url string) (*types.FetchResponse, error) {
 		Content:     content,
 		StatusCode:  resp.StatusCode,
 	}, nil
+}
+
+// FetchMultipleURLs - Fetch content from multiple URLs in parallel
+func (s *FetchServer) FetchMultipleURLs(urls []string) (*types.MultipleFetchResponse, error) {
+	zap.S().Debugw("fetching multiple URLs", "count", len(urls), "workers", s.maxWorkers)
+
+	// Create response struct with maps
+	response := &types.MultipleFetchResponse{
+		Responses: make(map[string]*types.FetchResponse),
+		Errors:    make(map[string]string),
+	}
+
+	// Create a wait group to wait for all workers to finish
+	wg := &sync.WaitGroup{}
+
+	// Create mutex to protect concurrent map access
+	mu := &sync.Mutex{}
+
+	// Create a worker pool with channels
+	jobs := make(chan string, len(urls))
+
+	// Determine number of workers (use maxWorkers, but not more than URLs)
+	nWorkers := s.maxWorkers
+	if nWorkers > len(urls) {
+		nWorkers = len(urls)
+	}
+
+	// Start workers
+	for w := 1; w <= nWorkers; w++ {
+		wg.Add(1)
+		go func(workerId int) {
+			defer wg.Done()
+			zap.S().Debugw("starting worker", "worker_id", workerId)
+
+			for url := range jobs {
+				// Process URL
+				res, err := s.FetchURL(url)
+
+				// Lock for map access
+				mu.Lock()
+				if err != nil {
+					// Store error
+					response.Errors[url] = err.Error()
+					zap.S().Debugw("fetch failed", "worker_id", workerId, "url", url, "error", err)
+				} else {
+					// Store successful response
+					response.Responses[url] = res
+					zap.S().Debugw("fetch successful", "worker_id", workerId, "url", url, "status", res.StatusCode)
+				}
+				mu.Unlock()
+			}
+		}(w)
+	}
+
+	// Send URLs to the worker pool
+	for _, url := range urls {
+		jobs <- url
+	}
+	
+	// Close the jobs channel to signal workers that no more jobs are coming
+	close(jobs)
+
+	// Wait for all workers to finish
+	wg.Wait()
+	
+	zap.S().Infow("completed fetching multiple URLs", 
+		"total", len(urls),
+		"success", len(response.Responses),
+		"errors", len(response.Errors))
+
+	return response, nil
 }
