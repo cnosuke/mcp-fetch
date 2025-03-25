@@ -1,11 +1,13 @@
-# MCP Greeting Server
+# MCP Fetch Server
 
-MCP Greeting Server is a Go-based MCP server implementation that provides basic greeting functionality, allowing MCP clients (e.g., Claude Desktop) to generate greeting messages.
+MCP Fetch Server is a Go-based MCP server implementation that provides URL fetching functionality, allowing MCP clients (e.g., Claude Desktop) to fetch content from URLs with automatic format conversion.
 
 ## Features
 
 * MCP Compliance: Provides a JSON‐RPC based interface for tool execution according to the MCP specification.
-* Greeting Operations: Supports generating greeting messages, with options for personalization.
+* URL Fetching: Fetch content from URLs with automatic format conversion.
+* Markdown Conversion: Automatically converts HTML content to Markdown for better readability.
+* Content Type Detection: Returns appropriate content based on the Content-Type header.
 
 ## Requirements
 
@@ -16,11 +18,15 @@ MCP Greeting Server is a Go-based MCP server implementation that provides basic 
 The server is configured via a YAML file (default: config.yml). For example:
 
 ```yaml
-greeting:
-  default_message: "こんにちは！"
+fetch:
+  timeout: 30
+  user_agent: "mcp-fetch/1.0"
 ```
 
-Note: The default greeting message can also be injected via an environment variable `GREETING_DEFAULT_MESSAGE`. If this environment variable is set, it will override the value in the configuration file.
+Note: Configuration parameters can also be injected via environment variables:
+
+* `FETCH_TIMEOUT`: Override the fetch timeout in seconds
+* `FETCH_USER_AGENT`: Override the user agent string
 
 ## Logging
 
@@ -35,7 +41,7 @@ Important: When using the MCP server with a stdio transport, logging must not be
 
 MCP clients interact with the server by sending JSON‐RPC requests to execute various tools. The following MCP tools are supported:
 
-* `greeting/hello`: Generates a greeting message, with an optional name parameter for personalization.
+* `fetch`: Fetches content from a URL, with automatic format conversion based on content type.
 
 ### Using with Claude Desktop
 
@@ -44,18 +50,19 @@ To integrate with Claude Desktop, add an entry to your `claude_desktop_config.js
 ```json
 {
   "mcpServers": {
-    "greeting": {
+    "fetch": {
       "command": "./bin/mcp-fetch",
       "args": ["server", "--no-logs", "--log", "mcp-fetch.log"],
       "env": {
-        "GREETING_DEFAULT_MESSAGE": "こんにちは"
+        "FETCH_TIMEOUT": "30",
+        "FETCH_USER_AGENT": "mcp-fetch/1.0"
       }
     }
   }
 }
 ```
 
-This configuration registers the MCP Greeting Server with Claude Desktop, ensuring that all logs are directed to the specified log file rather than interfering with the MCP protocol messages transmitted over stdio.
+This configuration registers the MCP Fetch Server with Claude Desktop, ensuring that all logs are directed to the specified log file rather than interfering with the MCP protocol messages transmitted over stdio.
 
 ## Contributing
 
