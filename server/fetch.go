@@ -3,14 +3,16 @@ package server
 import (
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/JohannesKaufmann/html-to-markdown"
+	md "github.com/JohannesKaufmann/html-to-markdown"
 	"github.com/cnosuke/mcp-fetch/config"
 	"github.com/cnosuke/mcp-fetch/types"
 	"github.com/cockroachdb/errors"
+	"github.com/go-shiori/go-readability"
 	"go.uber.org/zap"
 )
 
@@ -65,20 +67,37 @@ func (s *FetchServer) FetchURL(url string) (*types.FetchResponse, error) {
 		return nil, errors.Wrap(err, "failed to read response body")
 	}
 
+	zap.S().Debugw(
+		"response received",
+		"url", url,
+		"status", resp.StatusCode,
+		"content-length", resp.ContentLength,
+		"bytes", len(body),
+		"content_type", resp.Header.Get("Content-Type"),
+	)
+
 	contentType := resp.Header.Get("Content-Type")
 	content := string(body)
 
 	// Process content based on content type
 	if strings.Contains(contentType, "text/html") {
-		// Convert HTML to Markdown
-		converter := md.NewConverter("", true, nil)
-		md, err := converter.ConvertString(content)
+		processedContent, err := s.processHTMLContent(content, url)
 		if err != nil {
-			zap.S().Warnw("failed to convert HTML to Markdown", "error", err)
-			// Return original content if conversion fails
+			zap.S().Warnw("failed to process HTML content with readability, falling back to basic conversion", "error", err)
+			// If readability fails, try fallback HTML-to-markdown conversion
+			basicMarkdown, fallbackErr := s.convertHTMLToMarkdown(content)
+			if fallbackErr != nil {
+				zap.S().Warnw("fallback HTML conversion also failed", "error", fallbackErr)
+				// If all conversions fail, return the original content
+			} else {
+				content = basicMarkdown
+			}
 		} else {
-			content = md
+			content = processedContent
 		}
+	} else {
+		// For non-HTML content, just return as is
+		content = s.processNonHTMLContent(content, contentType)
 	}
 
 	return &types.FetchResponse{
@@ -87,6 +106,69 @@ func (s *FetchServer) FetchURL(url string) (*types.FetchResponse, error) {
 		Content:     content,
 		StatusCode:  resp.StatusCode,
 	}, nil
+}
+
+// processHTMLContent - Process HTML content using readability and convert to markdown
+func (s *FetchServer) processHTMLContent(htmlContent, urlStr string) (string, error) {
+	// Parse URL string to *url.URL
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to parse URL")
+	}
+
+	// Use readability to extract the main content
+	article, err := readability.FromReader(strings.NewReader(htmlContent), parsedURL)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to extract content with readability")
+	}
+
+	// Convert the extracted content to Markdown
+	converter := md.NewConverter("", true, nil)
+	markdown, err := converter.ConvertString(article.Content)
+	if err != nil {
+		return article.Content, errors.Wrap(err, "failed to convert extracted content to Markdown")
+	}
+
+	// Add title as heading if available
+	if article.Title != "" {
+		markdown = "# " + article.Title + "\n\n" + markdown
+	}
+
+	// Add excerpt/description if available
+	if article.Excerpt != "" {
+		markdown = markdown + "\n\n---\n\n" + article.Excerpt
+	}
+
+	zap.S().Debugw(
+		"processed HTML content",
+		"url", urlStr,
+		"title", article.Title,
+		"length", len(markdown),
+	)
+
+	return markdown, nil
+}
+
+// processNonHTMLContent - Process non-HTML content
+func (s *FetchServer) processNonHTMLContent(content, contentType string) string {
+	// For now, we just return the content as is
+	// But we could add more processing for different content types in the future
+	zap.S().Debugw(
+		"non-HTML content detected, returning as is",
+		"content_type", contentType,
+		"length", len(content),
+	)
+	return content
+}
+
+// convertHTMLToMarkdown - Convert HTML to Markdown directly
+func (s *FetchServer) convertHTMLToMarkdown(htmlContent string) (string, error) {
+	converter := md.NewConverter("", true, nil)
+	markdown, err := converter.ConvertString(htmlContent)
+	if err != nil {
+		return htmlContent, errors.Wrap(err, "failed to convert HTML to Markdown")
+	}
+	return markdown, nil
 }
 
 // FetchMultipleURLs - Fetch content from multiple URLs in parallel
@@ -145,14 +227,14 @@ func (s *FetchServer) FetchMultipleURLs(urls []string) (*types.MultipleFetchResp
 	for _, url := range urls {
 		jobs <- url
 	}
-	
+
 	// Close the jobs channel to signal workers that no more jobs are coming
 	close(jobs)
 
 	// Wait for all workers to finish
 	wg.Wait()
-	
-	zap.S().Infow("completed fetching multiple URLs", 
+
+	zap.S().Infow("completed fetching multiple URLs",
 		"total", len(urls),
 		"success", len(response.Responses),
 		"errors", len(response.Errors))

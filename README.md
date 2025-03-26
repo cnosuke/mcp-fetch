@@ -7,6 +7,8 @@ MCP Fetch Server is a Go-based MCP server implementation that provides URL fetch
 - MCP Compliance: Provides a JSON‐RPC based interface for tool execution according to the MCP specification.
 - URL Fetching: Fetch content from URLs with automatic format conversion.
 - Markdown Conversion: Automatically converts HTML content to Markdown for better readability.
+- Readability Enhancement: Uses go-readability to extract and clean up the main content from HTML pages, preserving titles and important content while removing clutter.
+- Smart Content Processing: Includes title and excerpt information in the converted output, with fallback processing if the primary conversion fails.
 - Content Type Detection: Returns appropriate content based on the Content-Type header.
 
 ## Requirements

@@ -30,7 +30,7 @@ func RegisterFetchTool(mcpServer *mcp.Server, fetcher Fetcher) error {
 	zap.S().Debugw("registering fetch tool")
 	err := mcpServer.RegisterTool("fetch", "Fetch content from a URL with automatic format conversion",
 		func(args FetchArgs) (*mcp.ToolResponse, error) {
-			zap.S().Debugw("executing fetch",
+			zap.S().Infow("executing fetch",
 				"url", args.URL)
 
 			// Validate URL
