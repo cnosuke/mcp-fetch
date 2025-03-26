@@ -6,8 +6,10 @@ import (
 )
 
 // InitLogger initializes the global logger
-func InitLogger(debug bool, noLogs bool, logPath string) error {
+func InitLogger(debug bool, logPath string) error {
 	var config zap.Config
+
+	noLogs := len(logPath) == 0
 
 	if debug {
 		config = zap.NewDevelopmentConfig()
@@ -17,31 +19,17 @@ func InitLogger(debug bool, noLogs bool, logPath string) error {
 		config = zap.NewProductionConfig()
 	}
 
-	// when noLogs is true, only fatal logs are output
 	if noLogs {
 		config.Level = zap.NewAtomicLevelAt(zapcore.FatalLevel)
 	}
 
 	if noLogs {
-		if logPath != "" {
-			// noLogs && len(logPath) > 0: output to logPath only
-			config.OutputPaths = []string{logPath}
-			config.ErrorOutputPaths = []string{logPath}
-		} else {
-			// noLogs && len(logPath) == 0: no output
-			config.OutputPaths = []string{}
-			config.ErrorOutputPaths = []string{}
-		}
+		config.OutputPaths = []string{"stdout"}
+		config.ErrorOutputPaths = []string{"stderr"}
 	} else {
-		if logPath != "" {
-			// !noLogs && len(logPath) > 0: output to stdout and logPath
-			config.OutputPaths = []string{"stdout", logPath}
-			config.ErrorOutputPaths = []string{"stderr", logPath}
-		} else {
-			// !noLogs && len(logPath) == 0: output to stdout and stderr
-			config.OutputPaths = []string{"stdout"}
-			config.ErrorOutputPaths = []string{"stderr"}
-		}
+		config.OutputPaths = []string{logPath}
+		config.ErrorOutputPaths = []string{logPath}
+
 	}
 
 	logger, err := config.Build(
@@ -56,7 +44,6 @@ func InitLogger(debug bool, noLogs bool, logPath string) error {
 
 	zap.S().Infow("Logger initialized",
 		"debug", debug,
-		"no_logs", noLogs,
 		"log_path", logPath)
 
 	return nil

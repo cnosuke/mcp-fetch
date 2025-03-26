@@ -39,19 +39,9 @@ func main() {
 					Value:   "config.yml",
 					Usage:   "path to the configuration file",
 				},
-				&cli.BoolFlag{
-					Name:  "no-logs",
-					Usage: "suppress all logs except fatal errors",
-				},
-				&cli.StringFlag{
-					Name:  "log",
-					Usage: "path to log file (if specified, logs will be written to this file)",
-				},
 			},
 			Action: func(c *cli.Context) error {
 				configPath := c.String("config")
-				noLogs := c.Bool("no-logs")
-				logPath := c.String("log")
 
 				// Read the configuration file
 				cfg, err := config.LoadConfig(configPath)
@@ -60,7 +50,7 @@ func main() {
 				}
 
 				// Initialize logger
-				if err := logger.InitLogger(true, noLogs, logPath); err != nil {
+				if err := logger.InitLogger(cfg.Debug, cfg.Log); err != nil {
 					return errors.Wrap(err, "failed to initialize logger")
 				}
 				defer logger.Sync()

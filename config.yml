@@ -1,5 +1,5 @@
 fetch:
-  timeout: 30
+  timeout: 10
   user_agent: "mcp-fetch/1.0"
   max_urls: 20
   max_workers: 20
