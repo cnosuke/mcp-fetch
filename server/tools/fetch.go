@@ -2,6 +2,7 @@ package tools
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/cnosuke/mcp-fetch/config"
 	"github.com/cnosuke/mcp-fetch/types"
@@ -32,7 +33,7 @@ type MultiFetcher interface {
 // RegisterFetchTool - Register the fetch tool
 func RegisterFetchTool(mcpServer *mcp.Server, fetcher Fetcher, cfg *config.Config) error {
 	zap.S().Debugw("registering fetch tool")
-	err := mcpServer.RegisterTool("fetch", "Fetches a URL from the internet and extracts its contents as markdown",
+	err := mcpServer.RegisterTool("fetch", fmt.Sprintf("Fetches a URL from the internet and extracts its contents as markdown. Default max_length is %d.", cfg.Fetch.DefaultMaxLength),
 		func(args FetchArgs) (*mcp.ToolResponse, error) {
 			zap.S().Infow("executing fetch",
 				"url", args.URL,

@@ -20,7 +20,7 @@ type FetchMultipleArgs struct {
 // FetchMultipleTool - Register the fetch_multiple tool
 func RegisterFetchMultipleTool(mcpServer *mcp.Server, fetcher MultiFetcher, maxURLs int, cfg *config.Config) error {
 	zap.S().Debugw("registering fetch_multiple tool", "max_urls", maxURLs)
-	err := mcpServer.RegisterTool("fetch_multiple", fmt.Sprintf("Fetch content from multiple URLs (max %d)", maxURLs),
+	err := mcpServer.RegisterTool("fetch_multiple", fmt.Sprintf("Fetch content from multiple URLs (max %d). Default max_length is %d.", maxURLs, cfg.Fetch.DefaultMaxLength),
 		func(args FetchMultipleArgs) (*mcp.ToolResponse, error) {
 			// Log the request
 			zap.S().Debugw("executing fetch_multiple",
