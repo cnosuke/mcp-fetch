@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/cnosuke/mcp-fetch/config"
 	"github.com/cockroachdb/errors"
 	mcp "github.com/metoro-io/mcp-golang"
 	"go.uber.org/zap"
@@ -17,7 +18,7 @@ type FetchMultipleArgs struct {
 }
 
 // FetchMultipleTool - Register the fetch_multiple tool
-func RegisterFetchMultipleTool(mcpServer *mcp.Server, fetcher MultiFetcher, maxURLs int) error {
+func RegisterFetchMultipleTool(mcpServer *mcp.Server, fetcher MultiFetcher, maxURLs int, cfg *config.Config) error {
 	zap.S().Debugw("registering fetch_multiple tool", "max_urls", maxURLs)
 	err := mcpServer.RegisterTool("fetch_multiple", fmt.Sprintf("Fetch content from multiple URLs (max %d)", maxURLs),
 		func(args FetchMultipleArgs) (*mcp.ToolResponse, error) {
@@ -37,7 +38,7 @@ func RegisterFetchMultipleTool(mcpServer *mcp.Server, fetcher MultiFetcher, maxU
 			}
 
 			// Set default values
-			maxLength := 5000
+			maxLength := cfg.Fetch.DefaultMaxLength
 			if args.MaxLength > 0 {
 				maxLength = args.MaxLength
 			}

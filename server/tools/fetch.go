@@ -3,6 +3,7 @@ package tools
 import (
 	"encoding/json"
 
+	"github.com/cnosuke/mcp-fetch/config"
 	"github.com/cnosuke/mcp-fetch/types"
 	"github.com/cockroachdb/errors"
 	mcp "github.com/metoro-io/mcp-golang"
@@ -29,7 +30,7 @@ type MultiFetcher interface {
 }
 
 // RegisterFetchTool - Register the fetch tool
-func RegisterFetchTool(mcpServer *mcp.Server, fetcher Fetcher) error {
+func RegisterFetchTool(mcpServer *mcp.Server, fetcher Fetcher, cfg *config.Config) error {
 	zap.S().Debugw("registering fetch tool")
 	err := mcpServer.RegisterTool("fetch", "Fetches a URL from the internet and extracts its contents as markdown",
 		func(args FetchArgs) (*mcp.ToolResponse, error) {
@@ -45,7 +46,7 @@ func RegisterFetchTool(mcpServer *mcp.Server, fetcher Fetcher) error {
 			}
 
 			// Set default values
-			maxLength := 5000
+			maxLength := cfg.Fetch.DefaultMaxLength
 			if args.MaxLength > 0 {
 				maxLength = args.MaxLength
 			}

@@ -3,3 +3,4 @@ fetch:
   user_agent: "mcp-fetch/1.0"
   max_urls: 20
   max_workers: 20
+  default_max_length: 5000

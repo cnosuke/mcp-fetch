@@ -29,6 +29,7 @@ fetch:
   user_agent: 'mcp-fetch/1.0'
   max_urls: 20
   max_workers: 20
+  default_max_length: 5000
 ```
 
 Note: Configuration parameters can also be injected via environment variables:
@@ -39,6 +40,7 @@ Note: Configuration parameters can also be injected via environment variables:
 - `FETCH_USER_AGENT`: Override the user agent string
 - `FETCH_MAX_URLS`: Override the maximum number of URLs that can be processed in a single request
 - `FETCH_MAX_WORKERS`: Override the maximum number of worker goroutines for parallel processing
+- `FETCH_DEFAULT_MAX_LENGTH`: Override the default maximum length for content fetching (default: 5000)
 
 ## Logging
 
@@ -57,6 +59,7 @@ MCP clients interact with the server by sending JSON‐RPC requests to execute v
 Fetches a URL from the internet and extracts its contents as markdown.
 
 Parameters:
+
 - `url` (string, required): URL to fetch
 - `max_length` (integer, optional): Maximum number of characters to return (default: 5000)
 - `start_index` (integer, optional): Start content from this character index (default: 0)
@@ -67,6 +70,7 @@ Parameters:
 Fetches content from multiple URLs in parallel (up to the configured limit), with automatic format conversion.
 
 Parameters:
+
 - `urls` (array of strings, required): URLs to fetch (maximum depends on config)
 - `max_length` (integer, optional): Maximum number of characters to return, initially distributed equally among all URLs with unused allocation redistributed (default: 5000)
 - `raw` (boolean, optional): Get raw content without markdown conversion (default: false)
@@ -87,7 +91,8 @@ To integrate with Claude Desktop, add an entry to your `claude_desktop_config.js
         "FETCH_TIMEOUT": "10",
         "FETCH_USER_AGENT": "mcp-fetch/1.0",
         "FETCH_MAX_URLS": "20",
-        "FETCH_MAX_WORKERS": "20"
+        "FETCH_MAX_WORKERS": "20",
+        "FETCH_DEFAULT_MAX_LENGTH": "5000"
       }
     }
   }
@@ -113,7 +118,11 @@ This configuration registers the MCP Fetch Server with Claude Desktop, ensuring 
 
 ```json
 {
-  "urls": ["https://example1.com", "https://example2.com", "https://example3.com"],
+  "urls": [
+    "https://1.example.com",
+    "https://2.example.net",
+    "https://3.example.org"
+  ],
   "max_length": 9000,
   "raw": false
 }

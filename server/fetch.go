@@ -18,9 +18,10 @@ import (
 
 // FetchServer - Fetch server structure
 type FetchServer struct {
-	client     *http.Client
-	userAgent  string
-	maxWorkers int
+	client           *http.Client
+	userAgent        string
+	maxWorkers       int
+	defaultMaxLength int
 }
 
 // NewFetchServer - Create a new Fetch server
@@ -28,16 +29,18 @@ func NewFetchServer(cfg *config.Config) (*FetchServer, error) {
 	zap.S().Infow("creating new Fetch server",
 		"timeout", cfg.Fetch.Timeout,
 		"user_agent", cfg.Fetch.UserAgent,
-		"max_workers", cfg.Fetch.MaxWorkers)
+		"max_workers", cfg.Fetch.MaxWorkers,
+		"default_max_length", cfg.Fetch.DefaultMaxLength)
 
 	client := &http.Client{
 		Timeout: time.Duration(cfg.Fetch.Timeout) * time.Second,
 	}
 
 	return &FetchServer{
-		client:     client,
-		userAgent:  cfg.Fetch.UserAgent,
-		maxWorkers: cfg.Fetch.MaxWorkers,
+		client:           client,
+		userAgent:        cfg.Fetch.UserAgent,
+		maxWorkers:       cfg.Fetch.MaxWorkers,
+		defaultMaxLength: cfg.Fetch.DefaultMaxLength,
 	}, nil
 }
 
@@ -227,7 +230,7 @@ func (s *FetchServer) FetchMultipleURLs(urls []string, maxLength int, raw bool) 
 
 	// Default value if maxLength is not specified
 	if maxLength <= 0 {
-		maxLength = 5000
+		maxLength = s.defaultMaxLength
 	}
 
 	// Calculate initial character allocation for each URL
