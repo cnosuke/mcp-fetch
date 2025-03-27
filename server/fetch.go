@@ -41,9 +41,13 @@ func NewFetchServer(cfg *config.Config) (*FetchServer, error) {
 	}, nil
 }
 
-// FetchURL - Fetch content from a URL
-func (s *FetchServer) FetchURL(url string) (*types.FetchResponse, error) {
-	zap.S().Debugw("fetching URL", "url", url)
+// FetchURL - Fetch content from a URL with content control options
+func (s *FetchServer) FetchURL(url string, maxLength int, startIndex int, raw bool) (*types.FetchResponse, error) {
+	zap.S().Debugw("fetching URL", 
+		"url", url,
+		"max_length", maxLength,
+		"start_index", startIndex,
+		"raw", raw)
 
 	// Create request
 	req, err := http.NewRequest("GET", url, nil)
@@ -79,8 +83,8 @@ func (s *FetchServer) FetchURL(url string) (*types.FetchResponse, error) {
 	contentType := resp.Header.Get("Content-Type")
 	content := string(body)
 
-	// Process content based on content type
-	if strings.Contains(contentType, "text/html") {
+	// Process content based on content type and raw flag
+	if !raw && strings.Contains(contentType, "text/html") {
 		processedContent, err := s.processHTMLContent(content, url)
 		if err != nil {
 			zap.S().Warnw("failed to process HTML content with readability, falling back to basic conversion", "error", err)
@@ -95,9 +99,42 @@ func (s *FetchServer) FetchURL(url string) (*types.FetchResponse, error) {
 		} else {
 			content = processedContent
 		}
-	} else {
+	} else if !raw {
 		// For non-HTML content, just return as is
 		content = s.processNonHTMLContent(content, contentType)
+	} else {
+		// Raw mode - return content as-is
+		zap.S().Debugw("raw mode enabled, returning content as-is",
+			"url", url,
+			"content_type", contentType)
+	}
+
+	// Apply content trimming based on startIndex and maxLength
+	if len(content) > 0 {
+		// Validate startIndex
+		if startIndex < 0 {
+			startIndex = 0
+		}
+		if startIndex > len(content) {
+			startIndex = len(content)
+		}
+
+		// Apply maxLength if specified
+		endIndex := len(content)
+		if maxLength > 0 && startIndex+maxLength < endIndex {
+			endIndex = startIndex + maxLength
+		}
+
+		// Trim content
+		if startIndex > 0 || endIndex < len(content) {
+			originalLength := len(content)
+			content = content[startIndex:endIndex]
+			zap.S().Debugw("content trimmed",
+				"original_length", originalLength,
+				"start_index", startIndex,
+				"end_index", endIndex,
+				"trimmed_length", len(content))
+		}
 	}
 
 	return &types.FetchResponse{
@@ -171,9 +208,13 @@ func (s *FetchServer) convertHTMLToMarkdown(htmlContent string) (string, error) 
 	return markdown, nil
 }
 
-// FetchMultipleURLs - Fetch content from multiple URLs in parallel
-func (s *FetchServer) FetchMultipleURLs(urls []string) (*types.MultipleFetchResponse, error) {
-	zap.S().Debugw("fetching multiple URLs", "count", len(urls), "workers", s.maxWorkers)
+// FetchMultipleURLs - Fetch content from multiple URLs in parallel with content control
+func (s *FetchServer) FetchMultipleURLs(urls []string, maxLength int, raw bool) (*types.MultipleFetchResponse, error) {
+	zap.S().Debugw("fetching multiple URLs", 
+		"count", len(urls), 
+		"max_length", maxLength,
+		"raw", raw,
+		"workers", s.maxWorkers)
 
 	// Create response struct with maps
 	response := &types.MultipleFetchResponse{
@@ -196,6 +237,10 @@ func (s *FetchServer) FetchMultipleURLs(urls []string) (*types.MultipleFetchResp
 		nWorkers = len(urls)
 	}
 
+	// Track total content length to enforce maxLength across all URLs
+	var totalContentLength int
+	totalContentLimitReached := false
+
 	// Start workers
 	for w := 1; w <= nWorkers; w++ {
 		wg.Add(1)
@@ -204,8 +249,17 @@ func (s *FetchServer) FetchMultipleURLs(urls []string) (*types.MultipleFetchResp
 			zap.S().Debugw("starting worker", "worker_id", workerId)
 
 			for url := range jobs {
-				// Process URL
-				res, err := s.FetchURL(url)
+				// Check if we already reached the total content limit
+				mu.Lock()
+				if totalContentLimitReached {
+					mu.Unlock()
+					continue
+				}
+				mu.Unlock()
+
+				// Process URL - individual URL fetch doesn't need length limits yet
+				// We'll apply the total limit after fetching
+				res, err := s.FetchURL(url, 0, 0, raw)
 
 				// Lock for map access
 				mu.Lock()
@@ -214,9 +268,36 @@ func (s *FetchServer) FetchMultipleURLs(urls []string) (*types.MultipleFetchResp
 					response.Errors[url] = err.Error()
 					zap.S().Debugw("fetch failed", "worker_id", workerId, "url", url, "error", err)
 				} else {
-					// Store successful response
-					response.Responses[url] = res
-					zap.S().Debugw("fetch successful", "worker_id", workerId, "url", url, "status", res.StatusCode)
+					// Check if adding this response would exceed the total length limit
+					contentLength := len(res.Content)
+					if maxLength > 0 && totalContentLength + contentLength > maxLength {
+						// Calculate how much content we can still add
+						remainingLength := maxLength - totalContentLength
+						if remainingLength > 0 {
+							// Trim the content to fit within the limit
+							res.Content = res.Content[:remainingLength]
+							response.Responses[url] = res
+							totalContentLength += remainingLength
+							zap.S().Debugw("fetch successful (trimmed to fit total limit)",
+								"worker_id", workerId,
+								"url", url,
+								"status", res.StatusCode,
+								"original_length", contentLength,
+								"trimmed_length", remainingLength)
+						}
+						// Set flag to stop processing further URLs
+						totalContentLimitReached = true
+					} else {
+						// Store successful response
+						response.Responses[url] = res
+						totalContentLength += contentLength
+						zap.S().Debugw("fetch successful",
+							"worker_id", workerId,
+							"url", url,
+							"status", res.StatusCode,
+							"content_length", contentLength,
+							"running_total", totalContentLength)
+					}
 				}
 				mu.Unlock()
 			}
@@ -237,7 +318,8 @@ func (s *FetchServer) FetchMultipleURLs(urls []string) (*types.MultipleFetchResp
 	zap.S().Infow("completed fetching multiple URLs",
 		"total", len(urls),
 		"success", len(response.Responses),
-		"errors", len(response.Errors))
+		"errors", len(response.Errors),
+		"total_content_length", totalContentLength)
 
 	return response, nil
 }

@@ -11,7 +11,9 @@ import (
 
 // FetchMultipleArgs - Arguments for fetch_multiple tool
 type FetchMultipleArgs struct {
-	URLs []string `json:"urls" jsonschema:"description=URLs to fetch (maximum depends on config),maxItems=100"`
+	URLs      []string `json:"urls" jsonschema:"description=URLs to fetch (maximum depends on config),maxItems=100"`
+	MaxLength int      `json:"max_length,omitempty" jsonschema:"description=Maximum total number of characters to return across all URLs combined"`
+	Raw       bool     `json:"raw,omitempty" jsonschema:"description=Get raw content without markdown conversion"`
 }
 
 // FetchMultipleTool - Register the fetch_multiple tool
@@ -21,7 +23,9 @@ func RegisterFetchMultipleTool(mcpServer *mcp.Server, fetcher MultiFetcher, maxU
 		func(args FetchMultipleArgs) (*mcp.ToolResponse, error) {
 			// Log the request
 			zap.S().Debugw("executing fetch_multiple",
-				"urls_count", len(args.URLs))
+				"urls_count", len(args.URLs),
+				"max_length", args.MaxLength,
+				"raw", args.Raw)
 
 			// Validate URLs count
 			if len(args.URLs) == 0 {
@@ -32,8 +36,14 @@ func RegisterFetchMultipleTool(mcpServer *mcp.Server, fetcher MultiFetcher, maxU
 				return nil, errors.Newf("too many URLs: maximum allowed is %d", maxURLs)
 			}
 
-			// Fetch URLs
-			response, err := fetcher.FetchMultipleURLs(args.URLs)
+			// Set default values
+			maxLength := 5000
+			if args.MaxLength > 0 {
+				maxLength = args.MaxLength
+			}
+
+			// Fetch URLs with parameters
+			response, err := fetcher.FetchMultipleURLs(args.URLs, maxLength, args.Raw)
 			if err != nil {
 				zap.S().Errorw("failed to fetch multiple URLs",
 					"error", err)
