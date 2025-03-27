@@ -13,6 +13,10 @@ require (
 	go.uber.org/zap v1.27.0
 )
 
+// This is a tentative version to be used as an MCP server on Cline.
+// cf. https://github.com/cnosuke/mcp-golang/pull/1
+replace github.com/metoro-io/mcp-golang v0.8.0 => github.com/cnosuke/mcp-golang v0.8.1
+
 require (
 	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/PuerkitoBio/goquery v1.10.2 // indirect
