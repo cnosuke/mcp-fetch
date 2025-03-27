@@ -10,6 +10,6 @@ type FetchResponse struct {
 
 // MultipleFetchResponse - Multiple URLs fetch response
 type MultipleFetchResponse struct {
-	Responses map[string]*FetchResponse `json:"responses"` // URLをキーとしたレスポンスのマップ
-	Errors    map[string]string         `json:"errors"`    // エラーが発生したURLとエラーメッセージのマップ
+	Responses map[string]*FetchResponse `json:"responses"` // Map of responses with URLs as keys
+	Errors    map[string]string         `json:"errors"`    // Map of error messages with failed URLs as keys
 }

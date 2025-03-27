@@ -213,8 +213,8 @@ type URLFetchResult struct {
 	URL            string
 	Response       *types.FetchResponse
 	Error          error
-	AllocatedChars int // 割り当てられた文字数
-	UsedChars      int // 実際に使用した文字数
+	AllocatedChars int // Number of characters allocated
+	UsedChars      int // Number of characters actually used
 }
 
 // FetchMultipleURLs - Fetch content from multiple URLs in parallel with content control and reallocation
@@ -225,12 +225,12 @@ func (s *FetchServer) FetchMultipleURLs(urls []string, maxLength int, raw bool) 
 		"raw", raw,
 		"workers", s.maxWorkers)
 
-	// maxLengthが指定されていない場合のデフォルト値
+	// Default value if maxLength is not specified
 	if maxLength <= 0 {
 		maxLength = 5000
 	}
 
-	// 各URLの初期配分文字数の計算
+	// Calculate initial character allocation for each URL
 	var initialAllocation int
 	if len(urls) > 0 {
 		initialAllocation = maxLength / len(urls)
@@ -240,7 +240,7 @@ func (s *FetchServer) FetchMultipleURLs(urls []string, maxLength int, raw bool) 
 		"initial_allocation", initialAllocation,
 		"total_max_length", maxLength)
 
-	// 結果を格納するためのスライス
+	// Slice to store results
 	results := make([]*URLFetchResult, len(urls))
 	for i := range results {
 		results[i] = &URLFetchResult{
@@ -249,10 +249,10 @@ func (s *FetchServer) FetchMultipleURLs(urls []string, maxLength int, raw bool) 
 		}
 	}
 
-	// 待機グループ
+	// Wait group
 	wg := &sync.WaitGroup{}
 
-	// 並列処理によるURLの取得
+	// Fetch URLs in parallel
 	for i, result := range results {
 		wg.Add(1)
 		go func(index int, r *URLFetchResult) {
@@ -262,7 +262,7 @@ func (s *FetchServer) FetchMultipleURLs(urls []string, maxLength int, raw bool) 
 				"url", r.URL,
 				"initial_allocation", r.AllocatedChars)
 
-			// 初期配分量で取得
+			// Fetch with initial allocation
 			response, err := s.FetchURL(r.URL, r.AllocatedChars, 0, raw)
 
 			r.Response = response
@@ -271,7 +271,7 @@ func (s *FetchServer) FetchMultipleURLs(urls []string, maxLength int, raw bool) 
 			if err == nil && response != nil {
 				r.UsedChars = len(response.Content)
 
-				// 割り当てられた量より少ない場合はログを出力
+				// Log if used less than allocated
 				if r.UsedChars < r.AllocatedChars {
 					zap.S().Debugw("URL used less than allocated length",
 						"url", r.URL,
@@ -283,33 +283,32 @@ func (s *FetchServer) FetchMultipleURLs(urls []string, maxLength int, raw bool) 
 		}(i, result)
 	}
 
-	// すべてのURLの処理が完了するまで待機
+	// Wait for all URLs to be processed
 	wg.Wait()
 
-	// 再配分のための未使用文字数の計算
+	// Calculate unused characters for reallocation
 	var totalUsed int
-	var redistribution []*URLFetchResult // 再配分が可能なURL
-	var beneficiaries []*URLFetchResult  // 再配分を受け取れるURL
+	var redistribution []*URLFetchResult // URLs for redistribution
+	var beneficiaries []*URLFetchResult  // URLs that can receive reallocation
 
 	for _, r := range results {
 		if r.Error != nil {
-			// エラーがあった場合は、割り当て分はすべて未使用とする
+			// If there was an error, consider all allocated characters as unused
 			continue
 		}
 
 		totalUsed += r.UsedChars
 
-		// 未使用分がある場合は再配分候補に追加
+		// Add to redistribution if there are unused characters
 		if r.UsedChars < r.AllocatedChars {
 			redistribution = append(redistribution, r)
 		} else if r.Response != nil {
-			// まだコンテンツが切り詰められている可能性があるURLは受益者に追加
-			// (レスポンスの内容が切り詰められていない限り)
+			// Add to beneficiaries if content might still be truncated
 			beneficiaries = append(beneficiaries, r)
 		}
 	}
 
-	// 再配分可能な総文字数
+	// Total characters available for reallocation
 	remainingChars := maxLength - totalUsed
 
 	zap.S().Debugw("redistribution status after initial fetch",
@@ -319,9 +318,9 @@ func (s *FetchServer) FetchMultipleURLs(urls []string, maxLength int, raw bool) 
 		"redistribution_urls", len(redistribution),
 		"beneficiary_urls", len(beneficiaries))
 
-	// 再配分が可能で、受益者が存在する場合に再配分を実行
+	// Perform reallocation if possible
 	if remainingChars > 0 && len(beneficiaries) > 0 {
-		// 受益者を並べ替えない場合は、単純に均等に配分
+		// Simple equal reallocation
 		perURLReallocation := remainingChars / len(beneficiaries)
 
 		if perURLReallocation > 0 {
@@ -329,9 +328,9 @@ func (s *FetchServer) FetchMultipleURLs(urls []string, maxLength int, raw bool) 
 				"per_url_reallocation", perURLReallocation,
 				"beneficiary_count", len(beneficiaries))
 
-			// 各受益者に再配分
+			// Reallocate to each beneficiary
 			for _, b := range beneficiaries {
-				// 追加分を取得
+				// Fetch additional content
 				additionalContent, err := s.fetchAdditionalContent(b.URL, b.Response, perURLReallocation, raw)
 				if err != nil {
 					zap.S().Warnw("failed to fetch additional content",
@@ -340,7 +339,7 @@ func (s *FetchServer) FetchMultipleURLs(urls []string, maxLength int, raw bool) 
 					continue
 				}
 
-				// 既存のコンテンツに追加分を追加
+				// Append additional content to existing content
 				originalLength := len(b.Response.Content)
 				b.Response.Content += additionalContent
 				b.UsedChars = len(b.Response.Content)
@@ -354,13 +353,13 @@ func (s *FetchServer) FetchMultipleURLs(urls []string, maxLength int, raw bool) 
 		}
 	}
 
-	// 最終的な結果を構築
+	// Build final response
 	response := &types.MultipleFetchResponse{
 		Responses: make(map[string]*types.FetchResponse),
 		Errors:    make(map[string]string),
 	}
 
-	// 結果を格納
+	// Store results
 	for _, r := range results {
 		if r.Error != nil {
 			response.Errors[r.URL] = r.Error.Error()
@@ -369,7 +368,7 @@ func (s *FetchServer) FetchMultipleURLs(urls []string, maxLength int, raw bool) 
 		}
 	}
 
-	// 完了ログ
+	// Log completion
 	zap.S().Infow("completed fetching multiple URLs with reallocation",
 		"total_urls", len(urls),
 		"success", len(response.Responses),
@@ -379,16 +378,16 @@ func (s *FetchServer) FetchMultipleURLs(urls []string, maxLength int, raw bool) 
 	return response, nil
 }
 
-// fetchAdditionalContent - 追加のコンテンツを取得
+// fetchAdditionalContent - Fetch additional content
 func (s *FetchServer) fetchAdditionalContent(url string, originalResponse *types.FetchResponse, additionalChars int, raw bool) (string, error) {
 	if additionalChars <= 0 || originalResponse == nil {
 		return "", nil
 	}
 
-	// 続きから取得するためにオフセットを設定
+	// Set offset to fetch from continuation
 	startIndex := len(originalResponse.Content)
 
-	// 追加分を取得
+	// Fetch additional content
 	response, err := s.FetchURL(url, additionalChars, startIndex, raw)
 	if err != nil {
 		return "", err
@@ -397,7 +396,7 @@ func (s *FetchServer) fetchAdditionalContent(url string, originalResponse *types
 	return response.Content, nil
 }
 
-// getTotalContentLength - レスポンス内の全コンテンツの合計長を取得
+// getTotalContentLength - Get total length of all content in response
 func getTotalContentLength(response *types.MultipleFetchResponse) int {
 	if response == nil {
 		return 0
