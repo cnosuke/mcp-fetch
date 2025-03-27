@@ -43,7 +43,7 @@ func NewFetchServer(cfg *config.Config) (*FetchServer, error) {
 
 // FetchURL - Fetch content from a URL with content control options
 func (s *FetchServer) FetchURL(url string, maxLength int, startIndex int, raw bool) (*types.FetchResponse, error) {
-	zap.S().Debugw("fetching URL", 
+	zap.S().Debugw("fetching URL",
 		"url", url,
 		"max_length", maxLength,
 		"start_index", startIndex,
@@ -208,118 +208,205 @@ func (s *FetchServer) convertHTMLToMarkdown(htmlContent string) (string, error) 
 	return markdown, nil
 }
 
-// FetchMultipleURLs - Fetch content from multiple URLs in parallel with content control
+// URLFetchResult - Struct to store fetching results with allocation information
+type URLFetchResult struct {
+	URL            string
+	Response       *types.FetchResponse
+	Error          error
+	AllocatedChars int // 割り当てられた文字数
+	UsedChars      int // 実際に使用した文字数
+}
+
+// FetchMultipleURLs - Fetch content from multiple URLs in parallel with content control and reallocation
 func (s *FetchServer) FetchMultipleURLs(urls []string, maxLength int, raw bool) (*types.MultipleFetchResponse, error) {
-	zap.S().Debugw("fetching multiple URLs", 
-		"count", len(urls), 
+	zap.S().Debugw("fetching multiple URLs with reallocation",
+		"count", len(urls),
 		"max_length", maxLength,
 		"raw", raw,
 		"workers", s.maxWorkers)
 
-	// Create response struct with maps
+	// maxLengthが指定されていない場合のデフォルト値
+	if maxLength <= 0 {
+		maxLength = 5000
+	}
+
+	// 各URLの初期配分文字数の計算
+	var initialAllocation int
+	if len(urls) > 0 {
+		initialAllocation = maxLength / len(urls)
+	}
+
+	zap.S().Debugw("initial allocation per URL calculated",
+		"initial_allocation", initialAllocation,
+		"total_max_length", maxLength)
+
+	// 結果を格納するためのスライス
+	results := make([]*URLFetchResult, len(urls))
+	for i := range results {
+		results[i] = &URLFetchResult{
+			URL:            urls[i],
+			AllocatedChars: initialAllocation,
+		}
+	}
+
+	// 待機グループ
+	wg := &sync.WaitGroup{}
+
+	// 並列処理によるURLの取得
+	for i, result := range results {
+		wg.Add(1)
+		go func(index int, r *URLFetchResult) {
+			defer wg.Done()
+
+			zap.S().Debugw("fetching URL with initial allocation",
+				"url", r.URL,
+				"initial_allocation", r.AllocatedChars)
+
+			// 初期配分量で取得
+			response, err := s.FetchURL(r.URL, r.AllocatedChars, 0, raw)
+
+			r.Response = response
+			r.Error = err
+
+			if err == nil && response != nil {
+				r.UsedChars = len(response.Content)
+
+				// 割り当てられた量より少ない場合はログを出力
+				if r.UsedChars < r.AllocatedChars {
+					zap.S().Debugw("URL used less than allocated length",
+						"url", r.URL,
+						"allocated", r.AllocatedChars,
+						"used", r.UsedChars,
+						"saved", r.AllocatedChars-r.UsedChars)
+				}
+			}
+		}(i, result)
+	}
+
+	// すべてのURLの処理が完了するまで待機
+	wg.Wait()
+
+	// 再配分のための未使用文字数の計算
+	var totalUsed int
+	var redistribution []*URLFetchResult // 再配分が可能なURL
+	var beneficiaries []*URLFetchResult  // 再配分を受け取れるURL
+
+	for _, r := range results {
+		if r.Error != nil {
+			// エラーがあった場合は、割り当て分はすべて未使用とする
+			continue
+		}
+
+		totalUsed += r.UsedChars
+
+		// 未使用分がある場合は再配分候補に追加
+		if r.UsedChars < r.AllocatedChars {
+			redistribution = append(redistribution, r)
+		} else if r.Response != nil {
+			// まだコンテンツが切り詰められている可能性があるURLは受益者に追加
+			// (レスポンスの内容が切り詰められていない限り)
+			beneficiaries = append(beneficiaries, r)
+		}
+	}
+
+	// 再配分可能な総文字数
+	remainingChars := maxLength - totalUsed
+
+	zap.S().Debugw("redistribution status after initial fetch",
+		"total_used", totalUsed,
+		"total_max", maxLength,
+		"remaining_chars", remainingChars,
+		"redistribution_urls", len(redistribution),
+		"beneficiary_urls", len(beneficiaries))
+
+	// 再配分が可能で、受益者が存在する場合に再配分を実行
+	if remainingChars > 0 && len(beneficiaries) > 0 {
+		// 受益者を並べ替えない場合は、単純に均等に配分
+		perURLReallocation := remainingChars / len(beneficiaries)
+
+		if perURLReallocation > 0 {
+			zap.S().Debugw("performing redistribution",
+				"per_url_reallocation", perURLReallocation,
+				"beneficiary_count", len(beneficiaries))
+
+			// 各受益者に再配分
+			for _, b := range beneficiaries {
+				// 追加分を取得
+				additionalContent, err := s.fetchAdditionalContent(b.URL, b.Response, perURLReallocation, raw)
+				if err != nil {
+					zap.S().Warnw("failed to fetch additional content",
+						"url", b.URL,
+						"error", err)
+					continue
+				}
+
+				// 既存のコンテンツに追加分を追加
+				originalLength := len(b.Response.Content)
+				b.Response.Content += additionalContent
+				b.UsedChars = len(b.Response.Content)
+
+				zap.S().Debugw("additional content fetched and appended",
+					"url", b.URL,
+					"original_length", originalLength,
+					"additional_length", len(additionalContent),
+					"new_total_length", b.UsedChars)
+			}
+		}
+	}
+
+	// 最終的な結果を構築
 	response := &types.MultipleFetchResponse{
 		Responses: make(map[string]*types.FetchResponse),
 		Errors:    make(map[string]string),
 	}
 
-	// Create a wait group to wait for all workers to finish
-	wg := &sync.WaitGroup{}
-
-	// Create mutex to protect concurrent map access
-	mu := &sync.Mutex{}
-
-	// Create a worker pool with channels
-	jobs := make(chan string, len(urls))
-
-	// Determine number of workers (use maxWorkers, but not more than URLs)
-	nWorkers := s.maxWorkers
-	if nWorkers > len(urls) {
-		nWorkers = len(urls)
+	// 結果を格納
+	for _, r := range results {
+		if r.Error != nil {
+			response.Errors[r.URL] = r.Error.Error()
+		} else if r.Response != nil {
+			response.Responses[r.URL] = r.Response
+		}
 	}
 
-	// Track total content length to enforce maxLength across all URLs
-	var totalContentLength int
-	totalContentLimitReached := false
-
-	// Start workers
-	for w := 1; w <= nWorkers; w++ {
-		wg.Add(1)
-		go func(workerId int) {
-			defer wg.Done()
-			zap.S().Debugw("starting worker", "worker_id", workerId)
-
-			for url := range jobs {
-				// Check if we already reached the total content limit
-				mu.Lock()
-				if totalContentLimitReached {
-					mu.Unlock()
-					continue
-				}
-				mu.Unlock()
-
-				// Process URL - individual URL fetch doesn't need length limits yet
-				// We'll apply the total limit after fetching
-				res, err := s.FetchURL(url, 0, 0, raw)
-
-				// Lock for map access
-				mu.Lock()
-				if err != nil {
-					// Store error
-					response.Errors[url] = err.Error()
-					zap.S().Debugw("fetch failed", "worker_id", workerId, "url", url, "error", err)
-				} else {
-					// Check if adding this response would exceed the total length limit
-					contentLength := len(res.Content)
-					if maxLength > 0 && totalContentLength + contentLength > maxLength {
-						// Calculate how much content we can still add
-						remainingLength := maxLength - totalContentLength
-						if remainingLength > 0 {
-							// Trim the content to fit within the limit
-							res.Content = res.Content[:remainingLength]
-							response.Responses[url] = res
-							totalContentLength += remainingLength
-							zap.S().Debugw("fetch successful (trimmed to fit total limit)",
-								"worker_id", workerId,
-								"url", url,
-								"status", res.StatusCode,
-								"original_length", contentLength,
-								"trimmed_length", remainingLength)
-						}
-						// Set flag to stop processing further URLs
-						totalContentLimitReached = true
-					} else {
-						// Store successful response
-						response.Responses[url] = res
-						totalContentLength += contentLength
-						zap.S().Debugw("fetch successful",
-							"worker_id", workerId,
-							"url", url,
-							"status", res.StatusCode,
-							"content_length", contentLength,
-							"running_total", totalContentLength)
-					}
-				}
-				mu.Unlock()
-			}
-		}(w)
-	}
-
-	// Send URLs to the worker pool
-	for _, url := range urls {
-		jobs <- url
-	}
-
-	// Close the jobs channel to signal workers that no more jobs are coming
-	close(jobs)
-
-	// Wait for all workers to finish
-	wg.Wait()
-
-	zap.S().Infow("completed fetching multiple URLs",
-		"total", len(urls),
+	// 完了ログ
+	zap.S().Infow("completed fetching multiple URLs with reallocation",
+		"total_urls", len(urls),
 		"success", len(response.Responses),
 		"errors", len(response.Errors),
-		"total_content_length", totalContentLength)
+		"total_content_length", getTotalContentLength(response))
 
 	return response, nil
+}
+
+// fetchAdditionalContent - 追加のコンテンツを取得
+func (s *FetchServer) fetchAdditionalContent(url string, originalResponse *types.FetchResponse, additionalChars int, raw bool) (string, error) {
+	if additionalChars <= 0 || originalResponse == nil {
+		return "", nil
+	}
+
+	// 続きから取得するためにオフセットを設定
+	startIndex := len(originalResponse.Content)
+
+	// 追加分を取得
+	response, err := s.FetchURL(url, additionalChars, startIndex, raw)
+	if err != nil {
+		return "", err
+	}
+
+	return response.Content, nil
+}
+
+// getTotalContentLength - レスポンス内の全コンテンツの合計長を取得
+func getTotalContentLength(response *types.MultipleFetchResponse) int {
+	if response == nil {
+		return 0
+	}
+
+	var total int
+	for _, resp := range response.Responses {
+		total += len(resp.Content)
+	}
+
+	return total
 }

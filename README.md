@@ -68,7 +68,7 @@ Fetches content from multiple URLs in parallel (up to the configured limit), wit
 
 Parameters:
 - `urls` (array of strings, required): URLs to fetch (maximum depends on config)
-- `max_length` (integer, optional): Maximum number of characters to return, distributed equally among all URLs (default: 5000)
+- `max_length` (integer, optional): Maximum number of characters to return, initially distributed equally among all URLs with unused allocation redistributed (default: 5000)
 - `raw` (boolean, optional): Get raw content without markdown conversion (default: false)
 
 ### Using with Claude Desktop
@@ -98,7 +98,7 @@ This configuration registers the MCP Fetch Server with Claude Desktop, ensuring 
 
 ## Examples
 
-### 単一URLへの指定オプション:
+### Single URL Options:
 
 ```json
 {
@@ -109,7 +109,7 @@ This configuration registers the MCP Fetch Server with Claude Desktop, ensuring 
 }
 ```
 
-### 複数URLへの均等配分:
+### Multiple URLs with Balanced Distribution:
 
 ```json
 {
@@ -119,7 +119,7 @@ This configuration registers the MCP Fetch Server with Claude Desktop, ensuring 
 }
 ```
 
-この例では、各URLに3000文字ずつ割り当てられます。
+In this example, each URL is initially allocated 3000 characters. If example1.com only uses 1500 characters, the remaining 1500 characters will be redistributed to the other URLs.
 
 ## Contributing
 
