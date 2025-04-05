@@ -1,16 +1,17 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
 	"github.com/cnosuke/mcp-fetch/config"
-	"github.com/cockroachdb/errors"
-	mcp "github.com/metoro-io/mcp-golang"
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 	"go.uber.org/zap"
 )
 
-// FetchMultipleArgs - Arguments for fetch_multiple tool
+// FetchMultipleArgs - Arguments for fetch_multiple tool (kept for test compatibility)
 type FetchMultipleArgs struct {
 	URLs      []string `json:"urls" jsonschema:"description=URLs to fetch (maximum depends on config),maxItems=100"`
 	MaxLength int      `json:"max_length,omitempty" jsonschema:"description=Maximum total number of characters to return across all URLs combined"`
@@ -18,54 +19,85 @@ type FetchMultipleArgs struct {
 }
 
 // FetchMultipleTool - Register the fetch_multiple tool
-func RegisterFetchMultipleTool(mcpServer *mcp.Server, fetcher MultiFetcher, maxURLs int, cfg *config.Config) error {
+func RegisterFetchMultipleTool(mcpServer *server.MCPServer, fetcher MultiFetcher, maxURLs int, cfg *config.Config) error {
 	zap.S().Debugw("registering fetch_multiple tool", "max_urls", maxURLs)
-	err := mcpServer.RegisterTool("fetch_multiple", fmt.Sprintf("Fetch content from multiple URLs (max %d). Default max_length is %d.", maxURLs, cfg.Fetch.DefaultMaxLength),
-		func(args FetchMultipleArgs) (*mcp.ToolResponse, error) {
-			// Log the request
-			zap.S().Debugw("executing fetch_multiple",
-				"urls_count", len(args.URLs),
-				"max_length", args.MaxLength,
-				"raw", args.Raw)
 
-			// Validate URLs count
-			if len(args.URLs) == 0 {
-				return nil, errors.New("at least one URL is required")
+	// Define the tool
+	tool := mcp.NewTool("fetch_multiple",
+		mcp.WithDescription(fmt.Sprintf("Fetch content from multiple URLs (max %d). Default max_length is %d.", maxURLs, cfg.Fetch.DefaultMaxLength)),
+		mcp.WithArray("urls",
+			mcp.Description(fmt.Sprintf("URLs to fetch (maximum %d)", maxURLs)),
+			mcp.Required(),
+			mcp.MaxItems(100),
+		),
+		mcp.WithNumber("max_length",
+			mcp.Description("Maximum total number of characters to return across all URLs combined"),
+		),
+		mcp.WithBoolean("raw",
+			mcp.Description("Get raw content without markdown conversion"),
+		),
+	)
+
+	// Register the tool handler
+	mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		// Extract parameters
+		var urls []string
+		if urlsArray, ok := request.Params.Arguments["urls"].([]interface{}); ok {
+			for _, u := range urlsArray {
+				if urlStr, ok := u.(string); ok {
+					urls = append(urls, urlStr)
+				}
 			}
+		}
 
-			if len(args.URLs) > maxURLs {
-				return nil, errors.Newf("too many URLs: maximum allowed is %d", maxURLs)
-			}
+		var maxLength int
+		if maxLengthVal, ok := request.Params.Arguments["max_length"].(float64); ok {
+			maxLength = int(maxLengthVal)
+		}
 
-			// Set default values
-			maxLength := cfg.Fetch.DefaultMaxLength
-			if args.MaxLength > 0 {
-				maxLength = args.MaxLength
-			}
+		var raw bool
+		if rawVal, ok := request.Params.Arguments["raw"].(bool); ok {
+			raw = rawVal
+		}
 
-			// Fetch URLs with parameters
-			response, err := fetcher.FetchMultipleURLs(args.URLs, maxLength, args.Raw)
-			if err != nil {
-				zap.S().Errorw("failed to fetch multiple URLs",
-					"error", err)
-				return nil, errors.Wrap(err, "failed to fetch multiple URLs")
-			}
+		// Log the request
+		zap.S().Debugw("executing fetch_multiple",
+			"urls_count", len(urls),
+			"max_length", maxLength,
+			"raw", raw)
 
-			// Convert response to JSON
-			jsonResponse, err := json.Marshal(response)
-			if err != nil {
-				zap.S().Errorw("failed to marshal response to JSON",
-					"error", err)
-				return nil, errors.Wrap(err, "failed to marshal response to JSON")
-			}
+		// Validate URLs count
+		if len(urls) == 0 {
+			return mcp.NewToolResultError("at least one URL is required"), nil
+		}
 
-			return mcp.NewToolResponse(mcp.NewTextContent(string(jsonResponse))), nil
-		})
+		if len(urls) > maxURLs {
+			return mcp.NewToolResultError(fmt.Sprintf("too many URLs: maximum allowed is %d", maxURLs)), nil
+		}
 
-	if err != nil {
-		zap.S().Errorw("failed to register fetch_multiple tool", "error", err)
-		return errors.Wrap(err, "failed to register fetch_multiple tool")
-	}
+		// Set default values
+		if maxLength <= 0 {
+			maxLength = cfg.Fetch.DefaultMaxLength
+		}
+
+		// Fetch URLs with parameters
+		response, err := fetcher.FetchMultipleURLs(urls, maxLength, raw)
+		if err != nil {
+			zap.S().Errorw("failed to fetch multiple URLs",
+				"error", err)
+			return mcp.NewToolResultError(fmt.Sprintf("failed to fetch multiple URLs: %s", err.Error())), nil
+		}
+
+		// Convert response to JSON
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			zap.S().Errorw("failed to marshal response to JSON",
+				"error", err)
+			return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response to JSON: %s", err.Error())), nil
+		}
+
+		return mcp.NewToolResultText(string(jsonResponse)), nil
+	})
 
 	return nil
 }
