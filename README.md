@@ -14,7 +14,70 @@ MCP Fetch Server is a Go-based MCP server implementation that provides URL fetch
 
 ## Requirements
 
+- Docker (recommended)
+
+For local development:
+
 - Go 1.24 or later
+
+## Using with Docker (Recommended)
+
+```bash
+docker pull cnosuke/mcp-fetch:latest
+
+docker run -i --rm cnosuke/mcp-fetch:latest
+```
+
+### Using with Claude Desktop (Docker)
+
+To integrate with Claude Desktop using Docker, add an entry to your `claude_desktop_config.json` file:
+
+```json
+{
+  "mcpServers": {
+    "fetch": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "cnosuke/mcp-fetch:latest"]
+    }
+  }
+}
+```
+
+## Building and Running (Go Binary)
+
+Alternatively, you can build and run the Go binary directly:
+
+```bash
+# Build the server
+make bin/mcp-fetch
+
+# Run the server
+./bin/mcp-fetch server --config=config.yml
+```
+
+### Using with Claude Desktop (Go Binary)
+
+To integrate with Claude Desktop using the Go binary, add an entry to your `claude_desktop_config.json` file:
+
+```json
+{
+  "mcpServers": {
+    "fetch": {
+      "command": "./bin/mcp-fetch",
+      "args": ["server"],
+      "env": {
+        "LOG_PATH": "mcp-fetch.log",
+        "DEBUG": "false",
+        "FETCH_TIMEOUT": "10",
+        "FETCH_USER_AGENT": "mcp-fetch/1.0",
+        "FETCH_MAX_URLS": "20",
+        "FETCH_MAX_WORKERS": "20",
+        "FETCH_DEFAULT_MAX_LENGTH": "5000"
+      }
+    }
+  }
+}
+```
 
 ## Configuration
 
@@ -75,31 +138,17 @@ Parameters:
 - `max_length` (integer, optional): Maximum number of characters to return, initially distributed equally among all URLs with unused allocation redistributed (default: 5000)
 - `raw` (boolean, optional): Get raw content without markdown conversion (default: false)
 
-### Using with Claude Desktop
+## Command-Line Parameters
 
-To integrate with Claude Desktop, add an entry to your `claude_desktop_config.json` file:
+When starting the server, you can specify various settings:
 
-```json
-{
-  "mcpServers": {
-    "fetch": {
-      "command": "./bin/mcp-fetch",
-      "args": ["server"],
-      "env": {
-        "LOG_PATH": "mcp-fetch.log",
-        "DEBUG": "false",
-        "FETCH_TIMEOUT": "10",
-        "FETCH_USER_AGENT": "mcp-fetch/1.0",
-        "FETCH_MAX_URLS": "20",
-        "FETCH_MAX_WORKERS": "20",
-        "FETCH_DEFAULT_MAX_LENGTH": "5000"
-      }
-    }
-  }
-}
+```bash
+./bin/mcp-fetch server [options]
 ```
 
-This configuration registers the MCP Fetch Server with Claude Desktop, ensuring that all logs are directed to the specified log file.
+Options:
+
+- `--config`, `-c`: Path to the configuration file (default: "config.yml").
 
 ## Examples
 

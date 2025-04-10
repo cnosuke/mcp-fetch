@@ -1,3 +1,6 @@
+log: 'mcp-fetch.log'
+debug: false
+
 fetch:
   timeout: 10
   user_agent: "mcp-fetch/1.0"
