@@ -2,13 +2,16 @@
 
 MCP Fetch Server is a Go-based MCP server implementation that provides URL fetching functionality, allowing MCP clients (e.g., Claude Desktop) to fetch content from URLs with automatic format conversion.
 
+MCP Fetch Server optimizes content for AI models by extracting only the meaningful content from web pages and converting it to token-efficient Markdown format, significantly reducing token usage while preserving the essential information.
+
 ## Features
 
 - MCP Compliance: Provides a JSON‐RPC based interface for tool execution according to the MCP specification.
 - URL Fetching: Fetch content from URLs with automatic format conversion.
-- Markdown Conversion: Automatically converts HTML content to Markdown for better readability.
-- Readability Enhancement: Uses go-readability to extract and clean up the main content from HTML pages, preserving titles and important content while removing clutter.
-- Smart Content Processing: Includes title and excerpt information in the converted output, with fallback processing if the primary conversion fails.
+- Token Efficiency: Extracts only the main content from web pages and removes clutter like ads, navigation, and irrelevant elements, significantly reducing token usage with AI models.
+- Markdown Conversion: Automatically converts HTML content to Markdown for better readability and further token optimization.
+- Readability Enhancement: Uses go-readability to preserve titles and important content while removing clutter.
+- Smart Content Processing: Includes title and author information in the converted output, with fallback processing if the primary conversion fails.
 - Content Type Detection: Returns appropriate content based on the Content-Type header.
 - Content Control: Supports content length limitation, offset, and raw content retrieval.
 
@@ -178,6 +181,14 @@ Options:
 ```
 
 In this example, each URL is initially allocated 3000 characters. If example1.com only uses 1500 characters, the remaining 1500 characters will be redistributed to the other URLs.
+
+## Dependencies
+
+This project makes use of several excellent open source libraries:
+
+- [github.com/mackee/go-readability](https://github.com/mackee/go-readability) - A Go implementation of Mozilla's Readability library for extracting main content from web pages and converting to Markdown
+- [github.com/mark3labs/mcp-go](https://github.com/mark3labs/mcp-go) - Go implementation of the MCP (Message Control Protocol) specification
+- [go.uber.org/zap](https://github.com/uber-go/zap) - Blazing fast, structured, leveled logging in Go
 
 ## Contributing
 
