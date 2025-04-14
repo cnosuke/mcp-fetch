@@ -1,4 +1,4 @@
-package tools
+package server
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/cnosuke/mcp-fetch/config"
-	"github.com/cnosuke/mcp-fetch/types"
+	"github.com/cnosuke/mcp-fetch/fetcher"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"go.uber.org/zap"
@@ -20,19 +20,8 @@ type FetchArgs struct {
 	Raw        bool   `json:"raw,omitempty" jsonschema:"description=Get raw content without markdown conversion"`
 }
 
-// Fetcher defines the interface for single URL fetching
-type Fetcher interface {
-	FetchURL(url string, maxLength int, startIndex int, raw bool) (*types.FetchResponse, error)
-}
-
-// MultiFetcher defines the interface for multiple URL fetching
-type MultiFetcher interface {
-	Fetcher
-	FetchMultipleURLs(urls []string, maxLength int, raw bool) (*types.MultipleFetchResponse, error)
-}
-
 // RegisterFetchTool - Register the fetch tool
-func RegisterFetchTool(mcpServer *server.MCPServer, fetcher Fetcher, cfg *config.Config) error {
+func RegisterFetchTool(mcpServer *server.MCPServer, f fetcher.Fetcher, cfg *config.Config) error {
 	zap.S().Debugw("registering fetch tool")
 
 	// Define the tool
@@ -89,8 +78,8 @@ func RegisterFetchTool(mcpServer *server.MCPServer, fetcher Fetcher, cfg *config
 			maxLength = cfg.Fetch.DefaultMaxLength
 		}
 
-		// Fetch URL with parameters
-		response, err := fetcher.FetchURL(url, maxLength, startIndex, raw)
+		// Fetch URL with parameters using the Fetcher interface
+		response, err := f.Fetch(url, maxLength, startIndex, raw)
 		if err != nil {
 			zap.S().Errorw("failed to fetch URL",
 				"url", url,

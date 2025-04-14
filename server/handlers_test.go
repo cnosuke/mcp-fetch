@@ -1,4 +1,4 @@
-package tools
+package server
 
 import (
 	"testing"
@@ -12,8 +12,8 @@ type MockFetcher struct {
 	defaultResponse *types.FetchResponse
 }
 
-// FetchURL - Mock implementation
-func (f *MockFetcher) FetchURL(url string, maxLength int, startIndex int, raw bool) (*types.FetchResponse, error) {
+// Fetch - Mock implementation
+func (f *MockFetcher) Fetch(urlStr string, maxLength int, startIndex int, raw bool) (*types.FetchResponse, error) {
 	// Clone the default response
 	response := &types.FetchResponse{
 		URL:         f.defaultResponse.URL,
@@ -36,8 +36,8 @@ func (f *MockFetcher) FetchURL(url string, maxLength int, startIndex int, raw bo
 	return response, nil
 }
 
-// FetchMultipleURLs - Mock implementation
-func (f *MockFetcher) FetchMultipleURLs(urls []string, maxLength int, raw bool) (*types.MultipleFetchResponse, error) {
+// FetchMultiple - Mock implementation
+func (f *MockFetcher) FetchMultiple(urls []string, maxLength int, raw bool) (*types.MultipleFetchResponse, error) {
 	// Create a response with each URL getting the same content
 	response := &types.MultipleFetchResponse{
 		Responses: make(map[string]*types.FetchResponse),
@@ -47,7 +47,7 @@ func (f *MockFetcher) FetchMultipleURLs(urls []string, maxLength int, raw bool) 
 	totalLength := 0
 	for _, url := range urls {
 		// Get a response for this URL
-		urlResponse, _ := f.FetchURL(url, 0, 0, raw)
+		urlResponse, _ := f.Fetch(url, 0, 0, raw)
 		
 		// Check if adding this would exceed the total maxLength
 		if maxLength > 0 {
@@ -85,24 +85,24 @@ func TestFetchFunctionality(t *testing.T) {
 	}
 
 	// Test 1: Basic fetch with default parameters
-	resp1, err := mockFetcher.FetchURL("https://example.com", 0, 0, false)
+	resp1, err := mockFetcher.Fetch("https://example.com", 0, 0, false)
 	assert.NoError(t, err)
 	assert.Equal(t, "https://example.com", resp1.URL)
 	assert.Equal(t, "This is a sample content string for testing purposes. It should be long enough to test various length limits.", resp1.Content)
 
 	// Test 2: Fetch with maxLength
-	resp2, err := mockFetcher.FetchURL("https://example.com", 20, 0, false)
+	resp2, err := mockFetcher.Fetch("https://example.com", 20, 0, false)
 	assert.NoError(t, err)
 	assert.Equal(t, 20, len(resp2.Content))
 	assert.Equal(t, "This is a sample con", resp2.Content)
 
 	// Test 3: Fetch with startIndex
-	resp3, err := mockFetcher.FetchURL("https://example.com", 0, 10, false)
+	resp3, err := mockFetcher.Fetch("https://example.com", 0, 10, false)
 	assert.NoError(t, err)
 	assert.Equal(t, "sample content string for testing purposes. It should be long enough to test various length limits.", resp3.Content)
 
 	// Test 4: Fetch with both maxLength and startIndex
-	resp4, err := mockFetcher.FetchURL("https://example.com", 10, 10, false)
+	resp4, err := mockFetcher.Fetch("https://example.com", 10, 10, false)
 	assert.NoError(t, err)
 	assert.Equal(t, "sample con", resp4.Content)
 }
@@ -121,13 +121,13 @@ func TestFetchMultipleFunctionality(t *testing.T) {
 
 	// Test 1: Fetch multiple URLs with no limit
 	urls := []string{"https://example1.com", "https://example2.com", "https://example3.com"}
-	resp1, err := mockFetcher.FetchMultipleURLs(urls, 0, false)
+	resp1, err := mockFetcher.FetchMultiple(urls, 0, false)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(resp1.Responses))
 	assert.Equal(t, 0, len(resp1.Errors))
 
 	// Test 2: Fetch multiple URLs with a total length limit that allows only partial content
-	resp2, err := mockFetcher.FetchMultipleURLs(urls, 150, false)
+	resp2, err := mockFetcher.FetchMultiple(urls, 150, false)
 	assert.NoError(t, err)
 	assert.LessOrEqual(t, len(resp1.Responses), 3)
 	
@@ -137,33 +137,4 @@ func TestFetchMultipleFunctionality(t *testing.T) {
 		totalLength += len(resp.Content)
 	}
 	assert.LessOrEqual(t, totalLength, 150)
-}
-
-// Test implementation of Greeter (legacy, kept for compatibility)
-type TestGreeter struct {
-	defaultMessage string
-}
-
-func (g *TestGreeter) GenerateGreeting(name string) (string, error) {
-	if name == "" {
-		return g.defaultMessage, nil
-	}
-	return g.defaultMessage + " " + name + "!", nil
-}
-
-// TestGreeterFunctionality (legacy test, kept for compatibility)
-func TestGreeterFunctionality(t *testing.T) {
-	// Mock Greeter instance
-	mockGreeter := &TestGreeter{
-		defaultMessage: "Hello!",
-	}
-
-	// Test
-	greeting1, err := mockGreeter.GenerateGreeting("")
-	assert.NoError(t, err)
-	assert.Equal(t, "Hello!", greeting1)
-
-	greeting2, err := mockGreeter.GenerateGreeting("Tanaka")
-	assert.NoError(t, err)
-	assert.Equal(t, "Hello! Tanaka!", greeting2)
 }

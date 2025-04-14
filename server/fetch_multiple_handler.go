@@ -1,4 +1,4 @@
-package tools
+package server
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/cnosuke/mcp-fetch/config"
+	"github.com/cnosuke/mcp-fetch/fetcher"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"go.uber.org/zap"
@@ -18,8 +19,8 @@ type FetchMultipleArgs struct {
 	Raw       bool     `json:"raw,omitempty" jsonschema:"description=Get raw content without markdown conversion"`
 }
 
-// FetchMultipleTool - Register the fetch_multiple tool
-func RegisterFetchMultipleTool(mcpServer *server.MCPServer, fetcher MultiFetcher, maxURLs int, cfg *config.Config) error {
+// RegisterFetchMultipleTool - Register the fetch_multiple tool
+func RegisterFetchMultipleTool(mcpServer *server.MCPServer, f fetcher.Fetcher, maxURLs int, cfg *config.Config) error {
 	zap.S().Debugw("registering fetch_multiple tool", "max_urls", maxURLs)
 
 	// Define the tool
@@ -80,8 +81,8 @@ func RegisterFetchMultipleTool(mcpServer *server.MCPServer, fetcher MultiFetcher
 			maxLength = cfg.Fetch.DefaultMaxLength
 		}
 
-		// Fetch URLs with parameters
-		response, err := fetcher.FetchMultipleURLs(urls, maxLength, raw)
+		// Fetch URLs with parameters using the Fetcher interface
+		response, err := f.FetchMultiple(urls, maxLength, raw)
 		if err != nil {
 			zap.S().Errorw("failed to fetch multiple URLs",
 				"error", err)

@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/cnosuke/mcp-fetch/config"
-	"github.com/cnosuke/mcp-fetch/server/tools"
+	"github.com/cnosuke/mcp-fetch/fetcher"
 	"github.com/cockroachdb/errors"
 )
 
@@ -22,11 +22,11 @@ func Run(cfg *config.Config, name string, version string, revision string) error
 		versionString = versionString + " (" + revision + ")"
 	}
 
-	// Create Fetch server
-	zap.S().Debugw("creating Fetch server")
-	fetchServer, err := NewFetchServer(cfg)
+	// Create Fetcher
+	zap.S().Debugw("creating HTTP Fetcher")
+	httpFetcher, err := fetcher.NewHTTPFetcher(cfg)
 	if err != nil {
-		zap.S().Errorw("failed to create Fetch server", "error", err)
+		zap.S().Errorw("failed to create HTTP Fetcher", "error", err)
 		return err
 	}
 
@@ -53,7 +53,7 @@ func Run(cfg *config.Config, name string, version string, revision string) error
 
 	// Register all tools
 	zap.S().Debugw("registering tools")
-	if err := tools.RegisterAllTools(mcpServer, fetchServer, cfg.Fetch.MaxURLs, cfg); err != nil {
+	if err := RegisterAllTools(mcpServer, httpFetcher, cfg.Fetch.MaxURLs, cfg); err != nil {
 		zap.S().Errorw("failed to register tools", "error", err)
 		return err
 	}
