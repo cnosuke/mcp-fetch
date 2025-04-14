@@ -242,7 +242,7 @@ func (f *httpFetcher) FetchMultiple(urls []string, maxLength int, raw bool) (*ty
 	processedResults := []*processedResult{}
 	finalErrors := make(map[string]string)
 
-	// Process successful initial fetches
+	// Process successful fetches results
 	for i, res := range results {
 		if res == nil {
 			zap.S().Errorw("encountered nil initial result", "index", i, "url", urls[i])
