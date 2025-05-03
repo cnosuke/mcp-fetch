@@ -7,12 +7,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cnosuke/mcp-fetch/config"
 	"github.com/cnosuke/mcp-fetch/types"
 	"github.com/cockroachdb/errors"
 	"github.com/mackee/go-readability"
 	"go.uber.org/zap"
 )
+
+type Config struct {
+	Timeout          int
+	UserAgent        string
+	MaxURLs          int
+	MaxWorkers       int
+	DefaultMaxLength int
+}
 
 // Fetcher defines the interface for fetching and processing URL content.
 type Fetcher interface {
@@ -35,22 +42,22 @@ type httpFetcher struct {
 }
 
 // NewHTTPFetcher creates a new httpFetcher.
-func NewHTTPFetcher(cfg *config.Config) (Fetcher, error) {
+func NewHTTPFetcher(cfg *Config) (Fetcher, error) {
 	zap.S().Infow("creating new HTTP fetcher",
-		"timeout", cfg.Fetch.Timeout,
-		"user_agent", cfg.Fetch.UserAgent,
-		"max_workers", cfg.Fetch.MaxWorkers,
-		"default_max_length", cfg.Fetch.DefaultMaxLength)
+		"timeout", cfg.Timeout,
+		"user_agent", cfg.UserAgent,
+		"max_workers", cfg.MaxWorkers,
+		"default_max_length", cfg.DefaultMaxLength)
 
 	client := &http.Client{
-		Timeout: time.Duration(cfg.Fetch.Timeout) * time.Second,
+		Timeout: time.Duration(cfg.Timeout) * time.Second,
 	}
 
 	return &httpFetcher{
 		client:           client,
-		userAgent:        cfg.Fetch.UserAgent,
-		maxWorkers:       cfg.Fetch.MaxWorkers,
-		defaultMaxLength: cfg.Fetch.DefaultMaxLength,
+		userAgent:        cfg.UserAgent,
+		maxWorkers:       cfg.MaxWorkers,
+		defaultMaxLength: cfg.DefaultMaxLength,
 	}, nil
 }
 

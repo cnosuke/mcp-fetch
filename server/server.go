@@ -24,7 +24,13 @@ func Run(cfg *config.Config, name string, version string, revision string) error
 
 	// Create Fetcher
 	zap.S().Debugw("creating HTTP Fetcher")
-	httpFetcher, err := fetcher.NewHTTPFetcher(cfg)
+	httpFetcher, err := fetcher.NewHTTPFetcher(&fetcher.Config{
+		Timeout:          cfg.Fetch.Timeout,
+		UserAgent:        cfg.Fetch.UserAgent,
+		MaxURLs:          cfg.Fetch.MaxURLs,
+		MaxWorkers:       cfg.Fetch.MaxWorkers,
+		DefaultMaxLength: cfg.Fetch.DefaultMaxLength,
+	})
 	if err != nil {
 		zap.S().Errorw("failed to create HTTP Fetcher", "error", err)
 		return err
