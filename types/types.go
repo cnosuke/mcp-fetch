@@ -6,6 +6,8 @@ type FetchResponse struct {
 	ContentType string `json:"content_type"`
 	Content     string `json:"content"`
 	StatusCode  int    `json:"status_code"`
+	// OriginalURL is set only if a redirect occurred. It represents the initial URL before any redirects.
+	OriginalURL string `json:"original_url,omitempty"`
 }
 
 // MultipleFetchResponse - Multiple URLs fetch response

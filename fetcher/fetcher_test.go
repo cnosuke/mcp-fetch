@@ -5,7 +5,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/cnosuke/mcp-fetch/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -139,29 +138,15 @@ func startMockServer(t *testing.T, responses map[string]mockResponse) *httptest.
 
 func newTestFetcher(t *testing.T, serverURL string) Fetcher {
 	t.Helper()
-	cfg := &config.Config{
-		Fetch: struct {
-			Timeout          int    `yaml:"timeout" default:"10" env:"FETCH_TIMEOUT"`
-			UserAgent        string `yaml:"user_agent" default:"mcp-fetch/1.0" env:"FETCH_USER_AGENT"`
-			MaxURLs          int    `yaml:"max_urls" default:"20" env:"FETCH_MAX_URLS"`
-			MaxWorkers       int    `yaml:"max_workers" default:"20" env:"FETCH_MAX_WORKERS"`
-			DefaultMaxLength int    `yaml:"default_max_length" default:"5000" env:"FETCH_DEFAULT_MAX_LENGTH"`
-		}{
-			Timeout:          5, // Short timeout for tests
-			UserAgent:        "test-agent/1.0",
-			MaxWorkers:       5,
-			DefaultMaxLength: 1000,
-		},
-		// Other config sections can be default or nil if not needed by NewHTTPFetcher
+	cfg := &Config{
+		Timeout:          5, // Short timeout for tests
+		UserAgent:        "test-agent/1.0",
+		MaxURLs:          20,
+		MaxWorkers:       5,
+		DefaultMaxLength: 1000,
 	}
 	fetcher, err := NewHTTPFetcher(cfg)
 	require.NoError(t, err, "Failed to create test fetcher")
-
-	// If we need to override the client to point to the test server,
-	// we might need to adjust NewHTTPFetcher or the httpFetcher struct access.
-	// For now, assume we pass the test server URL directly to Fetch/FetchMultiple.
-	// Alternatively, modify the client's Transport for redirection (more complex).
-
 	return fetcher
 }
 
@@ -531,19 +516,12 @@ func TestHTTPFetcher_FetchMultiple_DefaultMaxLength(t *testing.T) {
 	server := startMockServer(t, mockResponses)
 
 	// Create fetcher with a specific default max length
-	cfg := &config.Config{
-		Fetch: struct {
-			Timeout          int    `yaml:"timeout" default:"10" env:"FETCH_TIMEOUT"`
-			UserAgent        string `yaml:"user_agent" default:"mcp-fetch/1.0" env:"FETCH_USER_AGENT"`
-			MaxURLs          int    `yaml:"max_urls" default:"20" env:"FETCH_MAX_URLS"`
-			MaxWorkers       int    `yaml:"max_workers" default:"20" env:"FETCH_MAX_WORKERS"`
-			DefaultMaxLength int    `yaml:"default_max_length" default:"5000" env:"FETCH_DEFAULT_MAX_LENGTH"`
-		}{
-			Timeout:          5,
-			UserAgent:        "test-agent/1.0",
-			MaxWorkers:       5,
-			DefaultMaxLength: 1500, // Set a default
-		},
+	cfg := &Config{
+		Timeout:          5,
+		UserAgent:        "test-agent/1.0",
+		MaxURLs:          20,
+		MaxWorkers:       5,
+		DefaultMaxLength: 1500, // Set a default
 	}
 	fetcher, err := NewHTTPFetcher(cfg)
 	require.NoError(t, err)
@@ -575,7 +553,7 @@ func TestHTTPFetcher_FetchMultiple_DefaultMaxLength(t *testing.T) {
 	assert.Len(t, r2.Content, 750)
 
 	totalLen := len(r1.Content) + len(r2.Content)
-	assert.Equal(t, cfg.Fetch.DefaultMaxLength, totalLen, "Total length should match default maxLength")
+	assert.Equal(t, cfg.DefaultMaxLength, totalLen, "Total length should match default maxLength")
 }
 
 func TestHTTPFetcher_FetchMultiple_HTMLProcessing(t *testing.T) {
@@ -611,4 +589,37 @@ func TestHTTPFetcher_FetchMultiple_HTMLProcessing(t *testing.T) {
 
 	totalLen := len(r1.Content) + len(r2.Content)
 	assert.LessOrEqual(t, totalLen, maxLength)
+}
+
+// Test that fetcher follows HTTP redirects (3xx)
+func TestHTTPFetcher_Fetch_FollowsRedirect(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/redirect":
+			w.Header().Set("Location", "/final")
+			w.WriteHeader(302)
+		case "/final":
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(200)
+			_, err := w.Write([]byte("redirected content"))
+			require.NoError(t, err)
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer server.Close()
+
+	fetcher := newTestFetcher(t, server.URL)
+	resp, err := fetcher.Fetch(server.URL+"/redirect", 1000, 0, false)
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+	require.Equal(t, "redirected content", resp.Content)
+	// Regression test: Content should not contain URL or path (prevent past bug where URL was returned instead of body)
+	// See: https://github.com/cnosuke/mcp-fetch/issues/xxx (if exists)
+	assert.NotContains(t, resp.Content, "/redirect", "Content should not contain redirect path")
+	assert.NotContains(t, resp.Content, "/final", "Content should not contain final path")
+	// If the bug reappears and Content contains the URL, this will fail.
+
+	// Check that original_url is set to the initial URL when redirect occurs
+	assert.Equal(t, server.URL+"/redirect", resp.OriginalURL, "original_url should be set to the initial URL when redirect occurs")
 }

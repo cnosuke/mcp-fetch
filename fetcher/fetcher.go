@@ -66,6 +66,7 @@ type fetchResponse struct {
 	status      int
 	body        string
 	contentType string
+	originalURL string // Set only if redirect occurred
 	err         error
 }
 
@@ -76,7 +77,27 @@ func (f *httpFetcher) fetch(urlStr string) *fetchResponse {
 	}
 	req.Header.Set("User-Agent", f.userAgent)
 
+	// Track redirect chain for this request
+	var redirectChain []string
+	// Save original CheckRedirect to restore later
+	origCheckRedirect := f.client.CheckRedirect
+	f.client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		// Record the redirect chain
+		if len(via) == 1 {
+			redirectChain = append(redirectChain, via[0].URL.String())
+		}
+		redirectChain = append(redirectChain, req.URL.String())
+		// Default policy: allow up to 10 redirects
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		return nil
+	}
+
 	resp, err := f.client.Do(req)
+	// Restore original CheckRedirect
+	f.client.CheckRedirect = origCheckRedirect
+
 	if err != nil {
 		return &fetchResponse{err: errors.Wrap(err, "failed to execute request")}
 	}
@@ -96,11 +117,17 @@ func (f *httpFetcher) fetch(urlStr string) *fetchResponse {
 		"content_type", resp.Header.Get("Content-Type"),
 	)
 
+	originalURL := ""
+	if len(redirectChain) > 0 && redirectChain[0] != resp.Request.URL.String() {
+		originalURL = urlStr
+	}
+
 	return &fetchResponse{
-		url:         urlStr,
+		url:         resp.Request.URL.String(),
 		status:      resp.StatusCode,
 		body:        string(bodyBytes),
 		contentType: resp.Header.Get("Content-Type"),
+		originalURL: originalURL,
 		err:         nil,
 	}
 }
@@ -145,6 +172,8 @@ func (f *httpFetcher) Fetch(urlStr string, maxLength int, startIndex int, raw bo
 		ContentType: resp.contentType,
 		Content:     trimmedContent,
 		StatusCode:  resp.status,
+		// Set only if redirect occurred
+		OriginalURL: resp.originalURL,
 	}, nil
 }
 
