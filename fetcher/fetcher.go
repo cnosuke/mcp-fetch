@@ -1,14 +1,15 @@
 package fetcher
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	ierrors "github.com/cnosuke/mcp-fetch/internal/errors"
 	"github.com/cnosuke/mcp-fetch/types"
-	"github.com/cockroachdb/errors"
 	"github.com/mackee/go-readability"
 	"go.uber.org/zap"
 )
@@ -73,7 +74,7 @@ type fetchResponse struct {
 func (f *httpFetcher) fetch(urlStr string) *fetchResponse {
 	req, err := http.NewRequest("GET", urlStr, nil)
 	if err != nil {
-		return &fetchResponse{err: errors.Wrap(err, "failed to create request")}
+		return &fetchResponse{err: ierrors.Wrap(err, "failed to create request")}
 	}
 	req.Header.Set("User-Agent", f.userAgent)
 
@@ -99,13 +100,13 @@ func (f *httpFetcher) fetch(urlStr string) *fetchResponse {
 	f.client.CheckRedirect = origCheckRedirect
 
 	if err != nil {
-		return &fetchResponse{err: errors.Wrap(err, "failed to execute request")}
+		return &fetchResponse{err: ierrors.Wrap(err, "failed to execute request")}
 	}
 
 	defer resp.Body.Close()
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return &fetchResponse{err: errors.Wrap(err, "failed to read response body")}
+		return &fetchResponse{err: ierrors.Wrap(err, "failed to read response body")}
 	}
 
 	zap.S().Debugw(

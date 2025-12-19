@@ -9,7 +9,7 @@ import (
 
 	"github.com/cnosuke/mcp-fetch/config"
 	"github.com/cnosuke/mcp-fetch/fetcher"
-	"github.com/cockroachdb/errors"
+	ierrors "github.com/cnosuke/mcp-fetch/internal/errors"
 )
 
 // Run - Execute the MCP server
@@ -69,7 +69,7 @@ func Run(cfg *config.Config, name string, version string, revision string) error
 	err = server.ServeStdio(mcpServer)
 	if err != nil {
 		zap.S().Errorw("failed to start server", "error", err)
-		return errors.Wrap(err, "failed to start server")
+		return ierrors.Wrap(err, "failed to start server")
 	}
 
 	// ServeStdio will block until the server is terminated

@@ -5,9 +5,9 @@ import (
 	"os"
 
 	"github.com/cnosuke/mcp-fetch/config"
+	ierrors "github.com/cnosuke/mcp-fetch/internal/errors"
 	"github.com/cnosuke/mcp-fetch/logger"
 	"github.com/cnosuke/mcp-fetch/server"
-	"github.com/cockroachdb/errors"
 	"github.com/urfave/cli/v2"
 )
 
@@ -46,12 +46,12 @@ func main() {
 				// Read the configuration file
 				cfg, err := config.LoadConfig(configPath)
 				if err != nil {
-					return errors.Wrap(err, "failed to load configuration file")
+					return ierrors.Wrap(err, "failed to load configuration file")
 				}
 
 				// Initialize logger
 				if err := logger.InitLogger(cfg.Debug, cfg.Log); err != nil {
-					return errors.Wrap(err, "failed to initialize logger")
+					return ierrors.Wrap(err, "failed to initialize logger")
 				}
 				defer logger.Sync()
 
