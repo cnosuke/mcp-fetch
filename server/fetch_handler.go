@@ -45,20 +45,21 @@ func RegisterFetchTool(mcpServer *server.MCPServer, f fetcher.Fetcher, cfg *conf
 	// Register the tool handler
 	mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		// Extract parameters
-		url, _ := request.GetArguments()["url"].(string)
+		args := request.GetArguments()
+		url, _ := args["url"].(string)
 
 		var maxLength int
-		if maxLengthVal, ok := request.GetArguments()["max_length"].(float64); ok {
+		if maxLengthVal, ok := args["max_length"].(float64); ok {
 			maxLength = int(maxLengthVal)
 		}
 
 		var startIndex int
-		if startIndexVal, ok := request.GetArguments()["start_index"].(float64); ok {
+		if startIndexVal, ok := args["start_index"].(float64); ok {
 			startIndex = int(startIndexVal)
 		}
 
 		var raw bool
-		if rawVal, ok := request.GetArguments()["raw"].(bool); ok {
+		if rawVal, ok := args["raw"].(bool); ok {
 			raw = rawVal
 		}
 
