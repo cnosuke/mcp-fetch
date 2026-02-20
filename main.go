@@ -31,7 +31,7 @@ func main() {
 			{
 				Name:    "server",
 				Aliases: []string{"s"},
-				Usage:   "A simple MCP server implementation for greetings",
+				Usage:   "Start the MCP fetch server",
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:    "config",
