@@ -12,10 +12,28 @@ import (
 	ierrors "github.com/cnosuke/mcp-fetch/internal/errors"
 )
 
-// Run - Execute the MCP server
-func Run(cfg *config.Config, name string, version string, revision string) error {
-	zap.S().Infow("starting MCP Fetch Server")
+// RunStdio - Execute the MCP server with STDIO transport
+func RunStdio(cfg *config.Config, name string, version string, revision string) error {
+	zap.S().Infow("starting MCP Fetch Server with STDIO transport")
 
+	mcpServer, err := createMCPServer(cfg, name, version, revision)
+	if err != nil {
+		return err
+	}
+
+	zap.S().Infow("starting MCP server with STDIO")
+	err = server.ServeStdio(mcpServer)
+	if err != nil {
+		zap.S().Errorw("failed to start STDIO server", "error", err)
+		return ierrors.Wrap(err, "failed to start STDIO server")
+	}
+
+	zap.S().Infow("STDIO server shutting down")
+	return nil
+}
+
+// createMCPServer - Create MCP server instance with common configuration
+func createMCPServer(cfg *config.Config, name string, version string, revision string) (*server.MCPServer, error) {
 	// Format version string with revision if available
 	versionString := version
 	if revision != "" && revision != "xxx" {
@@ -33,7 +51,7 @@ func Run(cfg *config.Config, name string, version string, revision string) error
 	})
 	if err != nil {
 		zap.S().Errorw("failed to create HTTP Fetcher", "error", err)
-		return err
+		return nil, err
 	}
 
 	// Create custom hooks for error handling
@@ -61,18 +79,8 @@ func Run(cfg *config.Config, name string, version string, revision string) error
 	zap.S().Debugw("registering tools")
 	if err := RegisterAllTools(mcpServer, httpFetcher, cfg.Fetch.MaxURLs, cfg); err != nil {
 		zap.S().Errorw("failed to register tools", "error", err)
-		return err
+		return nil, err
 	}
 
-	// Start the server with stdio transport
-	zap.S().Infow("starting MCP server")
-	err = server.ServeStdio(mcpServer)
-	if err != nil {
-		zap.S().Errorw("failed to start server", "error", err)
-		return ierrors.Wrap(err, "failed to start server")
-	}
-
-	// ServeStdio will block until the server is terminated
-	zap.S().Infow("server shutting down")
-	return nil
+	return mcpServer, nil
 }

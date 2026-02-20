@@ -48,11 +48,11 @@ func (f *MockFetcher) FetchMultiple(urls []string, maxLength int, raw bool) (*ty
 	for _, url := range urls {
 		// Get a response for this URL
 		urlResponse, _ := f.Fetch(url, 0, 0, raw)
-		
+
 		// Check if adding this would exceed the total maxLength
 		if maxLength > 0 {
 			contentLength := len(urlResponse.Content)
-			if totalLength + contentLength > maxLength {
+			if totalLength+contentLength > maxLength {
 				remainingLength := maxLength - totalLength
 				if remainingLength > 0 {
 					// Trim to fit
@@ -65,7 +65,7 @@ func (f *MockFetcher) FetchMultiple(urls []string, maxLength int, raw bool) (*ty
 			}
 			totalLength += contentLength
 		}
-		
+
 		response.Responses[url] = urlResponse
 	}
 
@@ -130,7 +130,7 @@ func TestFetchMultipleFunctionality(t *testing.T) {
 	resp2, err := mockFetcher.FetchMultiple(urls, 150, false)
 	assert.NoError(t, err)
 	assert.LessOrEqual(t, len(resp1.Responses), 3)
-	
+
 	// Calculate total content length
 	totalLength := 0
 	for _, resp := range resp2.Responses {

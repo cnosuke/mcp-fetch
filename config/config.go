@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/confmap"
@@ -23,6 +24,13 @@ type Config struct {
 		MaxWorkers       int    `koanf:"max_workers"`
 		DefaultMaxLength int    `koanf:"default_max_length"`
 	} `koanf:"fetch"`
+	HTTP struct {
+		Binding          string   `koanf:"binding"`
+		EndpointPath     string   `koanf:"endpoint_path"`
+		HeartbeatSeconds int      `koanf:"heartbeat_seconds"`
+		AuthToken        string   `koanf:"auth_token"`
+		AllowedOrigins   []string `koanf:"allowed_origins"`
+	} `koanf:"http"`
 }
 
 func defaultValues() map[string]any {
@@ -34,6 +42,11 @@ func defaultValues() map[string]any {
 		"fetch.max_urls":           20,
 		"fetch.max_workers":        20,
 		"fetch.default_max_length": 5000,
+		"http.binding":             "localhost:8080",
+		"http.endpoint_path":       "/mcp",
+		"http.heartbeat_seconds":   30,
+		"http.auth_token":          "",
+		"http.allowed_origins":     []string{},
 	}
 }
 
@@ -80,6 +93,25 @@ func loadEnvOverrides() (map[string]any, error) {
 			return nil, err
 		}
 		overrides["fetch.default_max_length"] = n
+	}
+	if v := os.Getenv("HTTP_BINDING"); v != "" {
+		overrides["http.binding"] = v
+	}
+	if v := os.Getenv("HTTP_ENDPOINT_PATH"); v != "" {
+		overrides["http.endpoint_path"] = v
+	}
+	if v := os.Getenv("HTTP_HEARTBEAT_SECONDS"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, err
+		}
+		overrides["http.heartbeat_seconds"] = n
+	}
+	if v := os.Getenv("HTTP_AUTH_TOKEN"); v != "" {
+		overrides["http.auth_token"] = v
+	}
+	if v := os.Getenv("HTTP_ALLOWED_ORIGINS"); v != "" {
+		overrides["http.allowed_origins"] = strings.Split(v, ",")
 	}
 
 	return overrides, nil
