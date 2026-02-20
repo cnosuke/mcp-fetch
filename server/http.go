@@ -32,7 +32,7 @@ func RunHTTP(cfg *config.Config, name string, version string, revision string) e
 
 	var handler http.Handler = httpHandler
 	handler = withAuthMiddleware(handler, cfg.HTTP.AuthToken)
-	handler = withOriginValidation(handler, cfg.HTTP.AllowedOrigins)
+	handler = withOriginFilter(handler, cfg.HTTP.AllowedOrigins)
 
 	mux := http.NewServeMux()
 	mux.Handle(cfg.HTTP.EndpointPath, handler)

@@ -23,7 +23,9 @@ func withAuthMiddleware(next http.Handler, authToken string) http.Handler {
 	})
 }
 
-func withOriginValidation(next http.Handler, allowedOrigins []string) http.Handler {
+// withOriginFilter blocks requests from disallowed origins (server-to-server access control, not CORS).
+// Requests without an Origin header (e.g. CLI clients) are always allowed through.
+func withOriginFilter(next http.Handler, allowedOrigins []string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if len(allowedOrigins) == 0 {
 			next.ServeHTTP(w, r)

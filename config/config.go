@@ -7,7 +7,7 @@ import (
 // Config - Application configuration
 type Config struct {
 	Log   string `yaml:"log" default:"" env:"LOG_PATH"`
-	Debug bool   `yaml:"debug" default:"false" env:"DEBUG"` // Log file path
+	Debug bool   `yaml:"debug" default:"false" env:"DEBUG"`
 	Fetch struct {
 		Timeout          int    `yaml:"timeout" default:"10" env:"FETCH_TIMEOUT"` // Timeout in seconds
 		UserAgent        string `yaml:"user_agent" default:"mcp-fetch/1.0" env:"FETCH_USER_AGENT"`
