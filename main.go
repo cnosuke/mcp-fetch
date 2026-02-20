@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -8,7 +9,7 @@ import (
 	ierrors "github.com/cnosuke/mcp-fetch/internal/errors"
 	"github.com/cnosuke/mcp-fetch/logger"
 	"github.com/cnosuke/mcp-fetch/server"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 var (
@@ -22,46 +23,46 @@ var (
 )
 
 func main() {
-	app := cli.NewApp()
-	app.Version = fmt.Sprintf("%s (%s)", Version, Revision)
-	app.Name = Name
-	app.Usage = Usage
-
-	app.Commands = []*cli.Command{
-		{
-			Name:    "server",
-			Aliases: []string{"s"},
-			Usage:   "A simple MCP server implementation for greetings",
-			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:    "config",
-					Aliases: []string{"c"},
-					Value:   "config.yml",
-					Usage:   "path to the configuration file",
+	app := &cli.Command{
+		Name:    Name,
+		Usage:   Usage,
+		Version: fmt.Sprintf("%s (%s)", Version, Revision),
+		Commands: []*cli.Command{
+			{
+				Name:    "server",
+				Aliases: []string{"s"},
+				Usage:   "Start the MCP fetch server",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "config",
+						Aliases: []string{"c"},
+						Value:   "config.yml",
+						Usage:   "path to the configuration file",
+					},
 				},
-			},
-			Action: func(c *cli.Context) error {
-				configPath := c.String("config")
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					configPath := cmd.String("config")
 
-				// Read the configuration file
-				cfg, err := config.LoadConfig(configPath)
-				if err != nil {
-					return ierrors.Wrap(err, "failed to load configuration file")
-				}
+					// Read the configuration file
+					cfg, err := config.LoadConfig(configPath)
+					if err != nil {
+						return ierrors.Wrap(err, "failed to load configuration file")
+					}
 
-				// Initialize logger
-				if err := logger.InitLogger(cfg.Debug, cfg.Log); err != nil {
-					return ierrors.Wrap(err, "failed to initialize logger")
-				}
-				defer logger.Sync()
+					// Initialize logger
+					if err := logger.InitLogger(cfg.Debug, cfg.Log); err != nil {
+						return ierrors.Wrap(err, "failed to initialize logger")
+					}
+					defer logger.Sync()
 
-				// Start the server
-				return server.Run(cfg, Name, Version, Revision)
+					// Start the server
+					return server.Run(cfg, Name, Version, Revision)
+				},
 			},
 		},
 	}
 
-	if err := app.Run(os.Args); err != nil {
+	if err := app.Run(context.Background(), os.Args); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 	}
 }
