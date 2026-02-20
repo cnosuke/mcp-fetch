@@ -30,7 +30,11 @@ func LoadConfig(path string) (*Config, error) {
 	cfg.Fetch.DefaultMaxLength = 5000
 
 	f, err := os.Open(path)
-	if err == nil {
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+	} else {
 		defer f.Close()
 		if err := yaml.NewDecoder(f).Decode(cfg); err != nil {
 			return nil, err
