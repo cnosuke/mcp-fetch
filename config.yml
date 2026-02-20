@@ -7,3 +7,10 @@ fetch:
   max_urls: 20
   max_workers: 20
   default_max_length: 5000
+
+http:
+  binding: "localhost:8080"
+  endpoint_path: "/mcp"
+  heartbeat_seconds: 30
+  # auth_token: ""
+  # allowed_origins:

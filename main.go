@@ -29,9 +29,9 @@ func main() {
 
 	app.Commands = []*cli.Command{
 		{
-			Name:    "server",
-			Aliases: []string{"s"},
-			Usage:   "A simple MCP server implementation for greetings",
+			Name:    "stdioserver",
+			Aliases: []string{"stdio", "s"},
+			Usage:   "Run MCP server with STDIO transport",
 			Flags: []cli.Flag{
 				&cli.StringFlag{
 					Name:    "config",
@@ -55,8 +55,37 @@ func main() {
 				}
 				defer logger.Sync()
 
-				// Start the server
-				return server.Run(cfg, Name, Version, Revision)
+				return server.RunStdio(cfg, Name, Version, Revision)
+			},
+		},
+		{
+			Name:    "httpserver",
+			Aliases: []string{"http"},
+			Usage:   "Run MCP server with Streamable HTTP transport",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:    "config",
+					Aliases: []string{"c"},
+					Value:   "config.yml",
+					Usage:   "path to the configuration file",
+				},
+			},
+			Action: func(c *cli.Context) error {
+				configPath := c.String("config")
+
+				// Read the configuration file
+				cfg, err := config.LoadConfig(configPath)
+				if err != nil {
+					return ierrors.Wrap(err, "failed to load configuration file")
+				}
+
+				// Initialize logger
+				if err := logger.InitLogger(cfg.Debug, cfg.Log); err != nil {
+					return ierrors.Wrap(err, "failed to initialize logger")
+				}
+				defer logger.Sync()
+
+				return server.RunHTTP(cfg, Name, Version, Revision)
 			},
 		},
 	}

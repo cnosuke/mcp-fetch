@@ -43,7 +43,7 @@ func RegisterFetchMultipleTool(mcpServer *server.MCPServer, f fetcher.Fetcher, m
 	mcpServer.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		// Extract parameters
 		var urls []string
-		if urlsArray, ok := request.Params.Arguments["urls"].([]interface{}); ok {
+		if urlsArray, ok := request.GetArguments()["urls"].([]interface{}); ok {
 			for _, u := range urlsArray {
 				if urlStr, ok := u.(string); ok {
 					urls = append(urls, urlStr)
@@ -52,12 +52,12 @@ func RegisterFetchMultipleTool(mcpServer *server.MCPServer, f fetcher.Fetcher, m
 		}
 
 		var maxLength int
-		if maxLengthVal, ok := request.Params.Arguments["max_length"].(float64); ok {
+		if maxLengthVal, ok := request.GetArguments()["max_length"].(float64); ok {
 			maxLength = int(maxLengthVal)
 		}
 
 		var raw bool
-		if rawVal, ok := request.Params.Arguments["raw"].(bool); ok {
+		if rawVal, ok := request.GetArguments()["raw"].(bool); ok {
 			raw = rawVal
 		}
 

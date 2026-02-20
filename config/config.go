@@ -15,6 +15,13 @@ type Config struct {
 		MaxWorkers       int    `yaml:"max_workers" default:"20" env:"FETCH_MAX_WORKERS"`                 // Number of workers used for parallel processing
 		DefaultMaxLength int    `yaml:"default_max_length" default:"5000" env:"FETCH_DEFAULT_MAX_LENGTH"` // Default maximum character count for returned content
 	} `yaml:"fetch"`
+	HTTP struct {
+		Binding          string   `yaml:"binding" default:"localhost:8080" env:"HTTP_BINDING"`
+		EndpointPath     string   `yaml:"endpoint_path" default:"/mcp" env:"HTTP_ENDPOINT_PATH"`
+		HeartbeatSeconds int      `yaml:"heartbeat_seconds" default:"30" env:"HTTP_HEARTBEAT_SECONDS"`
+		AuthToken        string   `yaml:"auth_token" default:"" env:"HTTP_AUTH_TOKEN"`
+		AllowedOrigins   []string `yaml:"allowed_origins" env:"HTTP_ALLOWED_ORIGINS"`
+	} `yaml:"http"`
 }
 
 // LoadConfig - Load configuration file
