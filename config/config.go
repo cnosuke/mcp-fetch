@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"strconv"
 
@@ -91,7 +93,11 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
-	if _, err := os.Stat(path); err == nil {
+	if _, err := os.Stat(path); err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			return nil, err
+		}
+	} else {
 		if err := k.Load(file.Provider(path), yaml.Parser()); err != nil {
 			return nil, err
 		}
